@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -3079,6 +3079,312 @@ class Store {
       unlocksClue: result.unlocksClue,
       unlocksExhibition: result.unlocksExhibition,
       reward: solved ? mech.reward : undefined
+    };
+  }
+
+  getClueSummary(): FinalReviewClueSummary[] {
+    const summaries: FinalReviewClueSummary[] = [];
+    
+    for (const chapter of this.chapters) {
+      const chapterClues = this.clues.filter(c => c.chapterId === chapter.id);
+      const collectedList = chapterClues.filter(c => this.state.collectedClues.includes(c.id));
+      const missingList = chapterClues.filter(c => !this.state.collectedClues.includes(c.id));
+      
+      summaries.push({
+        chapterId: chapter.id,
+        chapterTitle: chapter.title,
+        totalClues: chapterClues.length,
+        collectedClues: collectedList.length,
+        collectedClueList: collectedList.map(c => ({ ...c })),
+        missingClueList: missingList.map(c => ({ ...c })),
+        completionRate: chapterClues.length > 0 
+          ? Math.round((collectedList.length / chapterClues.length) * 100) 
+          : 0
+      });
+    }
+    
+    return summaries;
+  }
+
+  getMechanismSummary(): FinalReviewMechanismSummary[] {
+    const summaries: FinalReviewMechanismSummary[] = [];
+    
+    for (const chapter of this.chapters) {
+      const chapterExhibitionIds = chapter.exhibitions;
+      const chapterMechanisms: Mechanism[] = [];
+      
+      for (const exhId of chapterExhibitionIds) {
+        const exh = this.exhibitions.find(e => e.id === exhId);
+        if (exh) {
+          const mechHotspots = exh.hotspots.filter(h => h.type === 'mechanism');
+          for (const hotspot of mechHotspots) {
+            const mech = this.mechanisms.find(m => m.id === hotspot.targetId);
+            if (mech && !chapterMechanisms.find(cm => cm.id === mech.id)) {
+              chapterMechanisms.push(mech);
+            }
+          }
+        }
+      }
+      
+      const solvedList = chapterMechanisms.filter(m => this.state.solvedMechanisms.includes(m.id));
+      const unsolvedList = chapterMechanisms.filter(m => !this.state.solvedMechanisms.includes(m.id));
+      
+      summaries.push({
+        chapterId: chapter.id,
+        chapterTitle: chapter.title,
+        totalMechanisms: chapterMechanisms.length,
+        solvedMechanisms: solvedList.length,
+        solvedMechanismList: solvedList.map(m => ({ ...m })),
+        unsolvedMechanismList: unsolvedList.map(m => ({ ...m })),
+        completionRate: chapterMechanisms.length > 0
+          ? Math.round((solvedList.length / chapterMechanisms.length) * 100)
+          : 0
+      });
+    }
+    
+    return summaries;
+  }
+
+  getChoiceSummary(): FinalReviewChoiceSummary[] {
+    const summaries: FinalReviewChoiceSummary[] = [];
+    
+    for (const branch of this.branchChoices) {
+      const selectedChoice = branch.selectedChoiceId 
+        ? branch.choices.find(c => c.id === branch.selectedChoiceId)
+        : null;
+      
+      summaries.push({
+        branchId: branch.id,
+        branchTitle: branch.text,
+        branchDescription: branch.description,
+        selectedChoiceId: branch.selectedChoiceId,
+        selectedChoiceText: selectedChoice?.text || null,
+        selectedChoiceConsequence: selectedChoice?.consequence || null,
+        allChoices: branch.choices.map(c => ({
+          id: c.id,
+          text: c.text,
+          consequence: c.consequence,
+          selected: c.id === branch.selectedChoiceId,
+          leadsToEnding: c.leadsToEnding
+        })),
+        madeAt: branch.madeAt
+      });
+    }
+    
+    return summaries;
+  }
+
+  getEndingConditions(): FinalReviewEndingCondition[] {
+    const conditions: FinalReviewEndingCondition[] = [];
+    const madeChoiceIds = Object.values(this.state.memoryCorridor.madeChoices);
+    
+    for (const ending of this.endings) {
+      const { requiredClues, requiredChoices, requiredMemoryComplete } = ending.unlockConditions;
+      const requiredConditions: FinalReviewEndingCondition['requiredConditions'] = [];
+      let satisfiedCount = 0;
+      let totalConditions = 0;
+      
+      if (requiredMemoryComplete !== undefined) {
+        totalConditions++;
+        const satisfied = this.state.memoryCorridor.isMemoryComplete === requiredMemoryComplete;
+        if (satisfied) satisfiedCount++;
+        requiredConditions.push({
+          type: 'memory_complete',
+          description: '记忆回廊完整度',
+          satisfied,
+          currentValue: this.state.memoryCorridor.isMemoryComplete ? '完整' : '不完整',
+          requiredValue: requiredMemoryComplete ? '完整' : '任意'
+        });
+      }
+      
+      if (requiredClues && requiredClues.length > 0) {
+        const collectedCount = requiredClues.filter(id => 
+          this.state.collectedClues.includes(id)
+        ).length;
+        totalConditions++;
+        const satisfied = collectedCount === requiredClues.length;
+        if (satisfied) satisfiedCount++;
+        
+        const clueNames = requiredClues.map(id => {
+          const clue = this.clues.find(c => c.id === id);
+          return clue?.name || id;
+        }).join('、');
+        
+        requiredConditions.push({
+          type: 'clue',
+          description: `收集关键线索 (${collectedCount}/${requiredClues.length})`,
+          targetId: requiredClues.join(','),
+          targetName: clueNames,
+          satisfied,
+          currentValue: `${collectedCount}个`,
+          requiredValue: `${requiredClues.length}个`
+        });
+        
+        for (const clueId of requiredClues) {
+          const clue = this.clues.find(c => c.id === clueId);
+          if (clue) {
+            totalConditions++;
+            const clueSatisfied = this.state.collectedClues.includes(clueId);
+            if (clueSatisfied) satisfiedCount++;
+            requiredConditions.push({
+              type: 'clue',
+              description: `线索: ${clue.name}`,
+              targetId: clueId,
+              targetName: clue.name,
+              satisfied: clueSatisfied,
+              currentValue: clueSatisfied ? '已收集' : '未收集',
+              requiredValue: '已收集'
+            });
+          }
+        }
+      }
+      
+      if (requiredChoices && requiredChoices.length > 0) {
+        const madeCount = requiredChoices.filter(id => 
+          madeChoiceIds.includes(id)
+        ).length;
+        totalConditions++;
+        const satisfied = madeCount === requiredChoices.length;
+        if (satisfied) satisfiedCount++;
+        
+        const choiceTexts = requiredChoices.map(id => {
+          for (const branch of this.branchChoices) {
+            const choice = branch.choices.find(c => c.id === id);
+            if (choice) return choice.text;
+          }
+          return id;
+        }).join('、');
+        
+        requiredConditions.push({
+          type: 'choice',
+          description: `做出关键抉择 (${madeCount}/${requiredChoices.length})`,
+          targetId: requiredChoices.join(','),
+          targetName: choiceTexts,
+          satisfied,
+          currentValue: `${madeCount}个`,
+          requiredValue: `${requiredChoices.length}个`
+        });
+        
+        for (const choiceId of requiredChoices) {
+          let choiceText = choiceId;
+          let branchText = '';
+          for (const branch of this.branchChoices) {
+            const choice = branch.choices.find(c => c.id === choiceId);
+            if (choice) {
+              choiceText = choice.text;
+              branchText = branch.text;
+              break;
+            }
+          }
+          totalConditions++;
+          const choiceSatisfied = madeChoiceIds.includes(choiceId);
+          if (choiceSatisfied) satisfiedCount++;
+          requiredConditions.push({
+            type: 'choice',
+            description: `抉择: ${choiceText}`,
+            targetId: choiceId,
+            targetName: branchText,
+            satisfied: choiceSatisfied,
+            currentValue: choiceSatisfied ? '已选择' : '未选择',
+            requiredValue: '已选择'
+          });
+        }
+      }
+      
+      const hint = this.generateEndingHint(ending, requiredConditions);
+      
+      conditions.push({
+        endingId: ending.id,
+        endingTitle: ending.title,
+        endingType: ending.type,
+        endingIcon: ending.icon,
+        isUnlocked: ending.unlocked,
+        isAchieved: ending.achieved,
+        unlockProgress: totalConditions > 0 
+          ? Math.round((satisfiedCount / totalConditions) * 100) 
+          : 0,
+        requiredConditions,
+        hint
+      });
+    }
+    
+    return conditions;
+  }
+
+  private generateEndingHint(
+    ending: Ending, 
+    conditions: FinalReviewEndingCondition['requiredConditions']
+  ): string {
+    const unsatisfied = conditions.filter(c => !c.satisfied);
+    
+    if (unsatisfied.length === 0) {
+      return '🎉 所有条件已满足，你可以达成这个结局！';
+    }
+    
+    if (ending.type === 'true') {
+      const clueCondition = unsatisfied.find(c => c.type === 'clue' && !c.targetId?.includes(','));
+      const choiceCondition = unsatisfied.find(c => c.type === 'choice' && !c.targetId?.includes(','));
+      const memoryCondition = unsatisfied.find(c => c.type === 'memory_complete');
+      
+      if (memoryCondition) {
+        return '💡 提示：收集所有记忆碎片，完成记忆拼图。';
+      }
+      if (clueCondition) {
+        return `💡 提示：还缺少线索「${clueCondition.targetName}」，继续探索吧。`;
+      }
+      if (choiceCondition) {
+        return `💡 提示：在「${choiceCondition.targetName}」中，做出不同的选择。`;
+      }
+    }
+    
+    if (ending.type === 'bad') {
+      return '⚠️  这是一个坏结局，建议尝试其他选择路径。';
+    }
+    
+    const firstUnsatisfied = unsatisfied[0];
+    if (firstUnsatisfied.type === 'clue') {
+      return `💡 提示：还需要收集 ${firstUnsatisfied.requiredValue} 线索，当前已有 ${firstUnsatisfied.currentValue}。`;
+    }
+    if (firstUnsatisfied.type === 'choice') {
+      return `💡 提示：还需要做出 ${firstUnsatisfied.requiredValue} 关键抉择，当前已有 ${firstUnsatisfied.currentValue}。`;
+    }
+    
+    return '💡 继续探索，收集更多线索，做出你的选择。';
+  }
+
+  getFinalReviewData(): FinalReviewData {
+    const clueSummaries = this.getClueSummary();
+    const mechanismSummaries = this.getMechanismSummary();
+    const choiceSummaries = this.getChoiceSummary();
+    const endingConditions = this.getEndingConditions();
+    
+    const totalClues = clueSummaries.reduce((sum, s) => sum + s.totalClues, 0);
+    const collectedClues = clueSummaries.reduce((sum, s) => sum + s.collectedClues, 0);
+    const totalMechanisms = mechanismSummaries.reduce((sum, s) => sum + s.totalMechanisms, 0);
+    const solvedMechanisms = mechanismSummaries.reduce((sum, s) => sum + s.solvedMechanisms, 0);
+    const totalChoices = choiceSummaries.length;
+    const madeChoices = choiceSummaries.filter(s => s.selectedChoiceId !== null).length;
+    
+    const clueProgress = totalClues > 0 ? (collectedClues / totalClues) : 0;
+    const mechProgress = totalMechanisms > 0 ? (solvedMechanisms / totalMechanisms) : 0;
+    const choiceProgress = totalChoices > 0 ? (madeChoices / totalChoices) : 0;
+    const overallProgress = Math.round(((clueProgress + mechProgress + choiceProgress) / 3) * 100);
+    
+    return {
+      totalClues,
+      collectedClues,
+      totalMechanisms,
+      solvedMechanisms,
+      totalChoices,
+      madeChoices,
+      clueSummaries,
+      mechanismSummaries,
+      choiceSummaries,
+      endingConditions,
+      overallProgress,
+      playTime: Date.now() - this.chapterStartTime,
+      currentEnding: this.getCurrentEnding(),
+      memoryComplete: this.state.memoryCorridor.isMemoryComplete
     };
   }
 }

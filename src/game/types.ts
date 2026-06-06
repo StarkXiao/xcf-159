@@ -599,3 +599,83 @@ export interface HiddenHotspotInteractionResult {
   unlocked?: boolean;
   message?: string;
 }
+
+export interface FinalReviewClueSummary {
+  chapterId: string;
+  chapterTitle: string;
+  totalClues: number;
+  collectedClues: number;
+  collectedClueList: Clue[];
+  missingClueList: Clue[];
+  completionRate: number;
+}
+
+export interface FinalReviewMechanismSummary {
+  chapterId: string;
+  chapterTitle: string;
+  totalMechanisms: number;
+  solvedMechanisms: number;
+  solvedMechanismList: Mechanism[];
+  unsolvedMechanismList: Mechanism[];
+  completionRate: number;
+}
+
+export interface FinalReviewChoiceSummary {
+  branchId: string;
+  branchTitle: string;
+  branchDescription: string;
+  selectedChoiceId: string | null;
+  selectedChoiceText: string | null;
+  selectedChoiceConsequence: string | null;
+  allChoices: {
+    id: string;
+    text: string;
+    consequence: string;
+    selected: boolean;
+    leadsToEnding?: string;
+  }[];
+  madeAt: number | null;
+}
+
+export interface FinalReviewEndingCondition {
+  endingId: string;
+  endingTitle: string;
+  endingType: 'good' | 'neutral' | 'bad' | 'true';
+  endingIcon: string;
+  isUnlocked: boolean;
+  isAchieved: boolean;
+  unlockProgress: number;
+  requiredConditions: {
+    type: 'clue' | 'choice' | 'memory_complete';
+    description: string;
+    targetId?: string;
+    targetName?: string;
+    satisfied: boolean;
+    currentValue?: string;
+    requiredValue?: string;
+  }[];
+  hint: string;
+}
+
+export interface FinalReviewData {
+  totalClues: number;
+  collectedClues: number;
+  totalMechanisms: number;
+  solvedMechanisms: number;
+  totalChoices: number;
+  madeChoices: number;
+  clueSummaries: FinalReviewClueSummary[];
+  mechanismSummaries: FinalReviewMechanismSummary[];
+  choiceSummaries: FinalReviewChoiceSummary[];
+  endingConditions: FinalReviewEndingCondition[];
+  overallProgress: number;
+  playTime: number;
+  currentEnding: Ending | null;
+  memoryComplete: boolean;
+}
+
+export interface FinalReviewTab {
+  id: 'clues' | 'mechanisms' | 'choices' | 'endings';
+  label: string;
+  icon: string;
+}

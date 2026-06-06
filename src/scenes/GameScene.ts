@@ -17,6 +17,7 @@ import { ArchiveReadingRoomModule } from '../modules/ArchiveReadingRoomModule';
 import { MemorySortModule } from '../modules/MemorySortModule';
 import { BranchChoiceModule } from '../modules/BranchChoiceModule';
 import { EndingModule } from '../modules/EndingModule';
+import { FinalReviewModule } from '../modules/FinalReviewModule';
 import { audioModule } from '../modules/AudioModule';
 
 export class GameScene extends Scene {
@@ -34,8 +35,10 @@ export class GameScene extends Scene {
   private memorySortModule: MemorySortModule | null = null;
   private branchChoiceModule: BranchChoiceModule | null = null;
   private endingModule: EndingModule | null = null;
+  private finalReviewModule: FinalReviewModule | null = null;
 
   private transitionOverlay: PIXI.Graphics | null = null;
+  private reviewButton: PIXI.Graphics | null = null;
 
   init(): void {
     this.visible = false;
@@ -56,10 +59,51 @@ export class GameScene extends Scene {
     this.memorySortModule = new MemorySortModule(this);
     this.branchChoiceModule = new BranchChoiceModule(this);
     this.endingModule = new EndingModule(this);
+    this.finalReviewModule = new FinalReviewModule(this);
+
+    this.createReviewButton();
 
     this.createParticles(25);
 
     this.setupEventListeners();
+  }
+
+  private createReviewButton(): void {
+    this.reviewButton = new PIXI.Graphics();
+    this.reviewButton.beginFill(GAME_CONFIG.COLORS.AMBER, 0.9);
+    this.reviewButton.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 1);
+    this.reviewButton.drawRoundedRect(0, 0, 70, 70, 12);
+    this.reviewButton.endFill();
+
+    const icon = new PIXI.Text('📜', { fontSize: 32 });
+    icon.anchor.set(0.5);
+    icon.x = 35;
+    icon.y = 35;
+    this.reviewButton.addChild(icon);
+
+    this.reviewButton.x = GAME_CONFIG.DESIGN_WIDTH - 90;
+    this.reviewButton.y = 70;
+    this.reviewButton.eventMode = 'static';
+    this.reviewButton.cursor = 'pointer';
+
+    this.reviewButton.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      eventBus.emit('finalreview:show');
+    });
+
+    this.reviewButton.on('pointerover', () => {
+      if (this.reviewButton) {
+        Animator.tween(this.reviewButton.scale, { x: 1.1, y: 1.1 }, 150);
+      }
+    });
+
+    this.reviewButton.on('pointerout', () => {
+      if (this.reviewButton) {
+        Animator.tween(this.reviewButton.scale, { x: 1, y: 1 }, 150);
+      }
+    });
+
+    this.addChild(this.reviewButton);
   }
 
   private createTransitionOverlay(): void {
@@ -177,6 +221,9 @@ export class GameScene extends Scene {
     if (this.endingModule) {
       this.endingModule.update(delta);
     }
+    if (this.finalReviewModule) {
+      this.finalReviewModule.update(delta);
+    }
   }
 
   destroy(): void {
@@ -199,6 +246,8 @@ export class GameScene extends Scene {
     if (this.memorySortModule) this.memorySortModule.destroy();
     if (this.branchChoiceModule) this.branchChoiceModule.destroy();
     if (this.endingModule) this.endingModule.destroy();
+    if (this.finalReviewModule) this.finalReviewModule.destroy();
+    if (this.reviewButton) this.reviewButton.destroy();
     if (this.transitionOverlay) this.transitionOverlay.destroy();
   }
 }
