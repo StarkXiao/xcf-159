@@ -915,6 +915,7 @@ class Store {
 
     this.updateHallProgress();
     this.checkAndUnlockRecordings(clueId);
+    this.checkAndUnlockContent(clueId);
 
     const linkedClueId = clue.linkedClueId;
     if (linkedClueId && this.state.collectedClues.includes(linkedClueId)) {
