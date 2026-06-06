@@ -1,4 +1,5 @@
 import { Clue } from '../types';
+import { AUTHENTICITY_CLUES } from './authenticity';
 
 export const CLUES: Clue[] = [
   {
@@ -243,5 +244,6 @@ export const CLUES: Clue[] = [
     hallOrigin: 'art',
     isShared: true,
     requiredClueFromOtherHall: 'clue_h3'
-  }
+  },
+  ...AUTHENTICITY_CLUES
 ];

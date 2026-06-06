@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -7,6 +7,7 @@ import { RELICS, RESTORATION_MATERIALS } from './data/restoration';
 import { VISITOR_QUESTS } from './data/visitorQuests';
 import { CHARACTERS } from './data/characters';
 import { TIMELINE_EVENTS } from './data/timelineEvents';
+import { AUTHENTICITY_RELICS, AUTHENTICITY_REWARDS } from './data/authenticity';
 import { eventBus } from './EventBus';
 
 class Store {
@@ -22,6 +23,8 @@ class Store {
   private visitorQuests: VisitorQuest[];
   private characters: Character[];
   private timelineEvents: TimelineEvent[];
+  private authenticityRelics: AuthenticityRelic[];
+  private authenticityRewards: AuthenticityReward[];
   private chapterStartTime: number = Date.now();
 
   constructor() {
@@ -37,6 +40,8 @@ class Store {
     this.visitorQuests = JSON.parse(JSON.stringify(VISITOR_QUESTS));
     this.characters = JSON.parse(JSON.stringify(CHARACTERS));
     this.timelineEvents = JSON.parse(JSON.stringify(TIMELINE_EVENTS));
+    this.authenticityRelics = JSON.parse(JSON.stringify(AUTHENTICITY_RELICS));
+    this.authenticityRewards = JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS));
 
     const defaultArchive: ArchiveState = {
       unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],
@@ -92,6 +97,16 @@ class Store {
       favoriteClues: []
     };
 
+    const defaultAuthenticity: AuthenticityState = {
+      currentRelic: null,
+      verifiedRelics: [],
+      checkPointProgress: {},
+      derivedPassword: '',
+      attempts: 0,
+      maxAttempts: 3,
+      rewards: JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS))
+    };
+
     this.state = savedState || {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -109,7 +124,8 @@ class Store {
       restoration: defaultRestoration,
       dualHall: defaultDualHall,
       visitorQuests: defaultVisitorQuests,
-      readingRoom: defaultReadingRoom
+      readingRoom: defaultReadingRoom,
+      authenticity: defaultAuthenticity
     };
 
     if (!this.state.archive) {
@@ -134,6 +150,10 @@ class Store {
 
     if (!this.state.readingRoom) {
       this.state.readingRoom = defaultReadingRoom;
+    }
+
+    if (!this.state.authenticity) {
+      this.state.authenticity = defaultAuthenticity;
     }
 
     this.applyStateToData();
@@ -270,6 +290,31 @@ class Store {
         if (event) event.unlocked = true;
       });
     }
+
+    if (this.state.authenticity) {
+      this.state.authenticity.verifiedRelics.forEach(id => {
+        const relic = this.authenticityRelics.find(r => r.id === id);
+        if (relic) {
+          relic.verified = true;
+        }
+      });
+      Object.keys(this.state.authenticity.checkPointProgress).forEach(relicId => {
+        const relic = this.authenticityRelics.find(r => r.id === relicId);
+        if (relic) {
+          const checkedIds = this.state.authenticity!.checkPointProgress[relicId];
+          relic.checkPoints.forEach(cp => {
+            if (checkedIds.includes(cp.id)) {
+              cp.checked = true;
+            }
+          });
+        }
+      });
+      this.state.authenticity.rewards.forEach((reward, index) => {
+        if (this.authenticityRewards[index]) {
+          this.authenticityRewards[index].claimed = reward.claimed;
+        }
+      });
+    }
   }
 
   getState(): GameState {
@@ -366,6 +411,13 @@ class Store {
       if (chapter) {
         this.unlockChapterRecordings(chapter.id);
       }
+    }
+
+    if (mech.reward === 'unlock_auth_final') {
+      this.unlockExhibition('exhibition_auth_final');
+      this.unlockExhibition('exhibition_auth_1');
+      this.state.currentChapter = 'chapter_5';
+      eventBus.emit('chapter:enter', { chapterId: 'chapter_5' });
     }
 
     if (mech.reward === 'ending') {
@@ -590,6 +642,8 @@ class Store {
     this.visitorQuests = JSON.parse(JSON.stringify(VISITOR_QUESTS));
     this.characters = JSON.parse(JSON.stringify(CHARACTERS));
     this.timelineEvents = JSON.parse(JSON.stringify(TIMELINE_EVENTS));
+    this.authenticityRelics = JSON.parse(JSON.stringify(AUTHENTICITY_RELICS));
+    this.authenticityRewards = JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS));
     this.chapterStartTime = Date.now();
     this.state = {
       currentChapter: 'chapter_1',
@@ -645,6 +699,15 @@ class Store {
         viewedEvents: [],
         searchHistory: [],
         favoriteClues: []
+      },
+      authenticity: {
+        currentRelic: null,
+        verifiedRelics: [],
+        checkPointProgress: {},
+        derivedPassword: '',
+        attempts: 0,
+        maxAttempts: 3,
+        rewards: JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS))
       }
     };
     this.applyStateToData();
@@ -1655,6 +1718,239 @@ class Store {
       id => !this.state.readingRoom.viewedEvents.includes(id)
     ).length;
     return newCharacters + newEvents;
+  }
+
+  getAuthenticityRelics(): AuthenticityRelic[] {
+    return this.authenticityRelics.map(r => ({ ...r }));
+  }
+
+  getAuthenticityRelicById(id: string): AuthenticityRelic | undefined {
+    return this.authenticityRelics.find(r => r.id === id);
+  }
+
+  getAuthenticityState(): AuthenticityState {
+    return { ...this.state.authenticity };
+  }
+
+  getAuthenticityRelicsByChapter(chapterId: string): AuthenticityRelic[] {
+    return this.authenticityRelics.filter(r => r.chapterId === chapterId).map(r => ({ ...r }));
+  }
+
+  setCurrentAuthenticityRelic(relicId: string | null): void {
+    this.state.authenticity.currentRelic = relicId;
+    this.saveToStorage();
+  }
+
+  checkAuthenticityCheckPoint(relicId: string, checkPointId: string, verdict: 'genuine' | 'fake'): { correct: boolean; evidence: string } {
+    const relic = this.authenticityRelics.find(r => r.id === relicId);
+    if (!relic) return { correct: false, evidence: '藏品不存在' };
+
+    const checkPoint = relic.checkPoints.find(cp => cp.id === checkPointId);
+    if (!checkPoint) return { correct: false, evidence: '检查点不存在' };
+
+    const isCorrect = (verdict === 'genuine' && checkPoint.isGenuine) ||
+                      (verdict === 'fake' && !checkPoint.isGenuine);
+
+    checkPoint.checked = true;
+    checkPoint.correctVerdict = isCorrect;
+
+    if (!this.state.authenticity.checkPointProgress[relicId]) {
+      this.state.authenticity.checkPointProgress[relicId] = [];
+    }
+    if (!this.state.authenticity.checkPointProgress[relicId].includes(checkPointId)) {
+      this.state.authenticity.checkPointProgress[relicId].push(checkPointId);
+    }
+
+    eventBus.emit('authenticity:checkpoint', {
+      relicId,
+      checkPointId,
+      verdict,
+      correct: isCorrect
+    });
+
+    this.saveToStorage();
+
+    return {
+      correct: isCorrect,
+      evidence: isCorrect ? checkPoint.genuineEvidence : checkPoint.fakeEvidence
+    };
+  }
+
+  getCheckPointProgress(relicId: string): number {
+    const relic = this.authenticityRelics.find(r => r.id === relicId);
+    if (!relic) return 0;
+    const checkedCount = relic.checkPoints.filter(cp => cp.checked).length;
+    return Math.round((checkedCount / relic.checkPoints.length) * 100);
+  }
+
+  canSubmitVerdict(relicId: string): boolean {
+    const relic = this.authenticityRelics.find(r => r.id === relicId);
+    if (!relic || relic.verified) return false;
+    return relic.checkPoints.every(cp => cp.checked);
+  }
+
+  submitRelicVerdict(relicId: string, verdict: 'genuine' | 'fake'): { correct: boolean; digit: number; position: number; clue: string } {
+    const relic = this.authenticityRelics.find(r => r.id === relicId);
+    if (!relic || relic.verified) {
+      return { correct: false, digit: 0, position: 0, clue: '' };
+    }
+
+    const isCorrect = (verdict === 'genuine' && relic.isGenuine) ||
+                      (verdict === 'fake' && !relic.isGenuine);
+
+    relic.verified = true;
+    relic.verdict = verdict;
+
+    if (!this.state.authenticity.verifiedRelics.includes(relicId)) {
+      this.state.authenticity.verifiedRelics.push(relicId);
+    }
+
+    if (isCorrect) {
+      const passwordArr = this.state.authenticity.derivedPassword.split('');
+      while (passwordArr.length < relic.digitPosition) {
+        passwordArr.push('?');
+      }
+      passwordArr[relic.digitPosition - 1] = relic.passwordDigit.toString();
+      this.state.authenticity.derivedPassword = passwordArr.join('');
+    }
+
+    eventBus.emit('authenticity:verdict', {
+      relicId,
+      verdict,
+      correct: isCorrect,
+      digit: isCorrect ? relic.passwordDigit : null,
+      position: isCorrect ? relic.digitPosition : null
+    });
+
+    this.saveToStorage();
+
+    return {
+      correct: isCorrect,
+      digit: isCorrect ? relic.passwordDigit : 0,
+      position: isCorrect ? relic.digitPosition : 0,
+      clue: isCorrect ? relic.passwordClue : ''
+    };
+  }
+
+  getDerivedPassword(): string {
+    return this.state.authenticity.derivedPassword;
+  }
+
+  getAuthenticityAttempts(): { current: number; max: number } {
+    return {
+      current: this.state.authenticity.attempts,
+      max: this.state.authenticity.maxAttempts
+    };
+  }
+
+  validateAuthenticityPassword(password: string): { correct: boolean; rewards: AuthenticityReward[] } {
+    const mechanism = this.mechanisms.find(m => m.type === 'authenticity');
+    if (!mechanism || mechanism.solved) {
+      return { correct: false, rewards: [] };
+    }
+
+    this.state.authenticity.attempts++;
+
+    const isCorrect = password === mechanism.answer;
+
+    if (isCorrect) {
+      mechanism.solved = true;
+      this.state.solvedMechanisms.push(mechanism.id);
+
+      const rewards = this.claimAuthenticityRewards();
+
+      eventBus.emit('authenticity:complete', {
+        mechanismId: mechanism.id,
+        password,
+        rewards
+      });
+
+      eventBus.emit('mechanism:solve', {
+        mechanismId: mechanism.id,
+        reward: mechanism.reward
+      });
+
+      this.saveToStorage();
+
+      return { correct: true, rewards };
+    } else {
+      eventBus.emit('authenticity:password-error', {
+        attempts: this.state.authenticity.attempts,
+        maxAttempts: this.state.authenticity.maxAttempts
+      });
+
+      this.saveToStorage();
+
+      return { correct: false, rewards: [] };
+    }
+  }
+
+  private claimAuthenticityRewards(): AuthenticityReward[] {
+    const claimedRewards: AuthenticityReward[] = [];
+
+    this.authenticityRewards.forEach((reward, index) => {
+      if (reward.claimed) return;
+
+      reward.claimed = true;
+      this.state.authenticity.rewards[index].claimed = true;
+      claimedRewards.push({ ...reward });
+
+      if (reward.type === 'score' && typeof reward.value === 'number') {
+        this.state.visitorQuests.totalScore += reward.value;
+        this.state.visitorQuests.currentChapterScore += reward.value;
+        eventBus.emit('quest:score', { score: reward.value, totalScore: this.state.visitorQuests.totalScore });
+      } else if (reward.type === 'clue' && typeof reward.value === 'string') {
+        this.collectClue(reward.value);
+      } else if (reward.type === 'unlock' && typeof reward.value === 'string') {
+        if (reward.value.startsWith('exhibition_')) {
+          this.unlockExhibition(reward.value);
+        }
+      } else if (reward.type === 'story' && typeof reward.value === 'string') {
+        eventBus.emit('authenticity:story', { story: reward.value });
+      }
+    });
+
+    return claimedRewards;
+  }
+
+  getAuthenticityRewards(): AuthenticityReward[] {
+    return this.authenticityRewards.map(r => ({ ...r }));
+  }
+
+  isAuthenticityComplete(): boolean {
+    const mechanism = this.mechanisms.find(m => m.type === 'authenticity');
+    return mechanism?.solved || false;
+  }
+
+  resetAuthenticityProgress(): void {
+    this.authenticityRelics.forEach(relic => {
+      relic.verified = false;
+      relic.verdict = null;
+      relic.checkPoints.forEach(cp => {
+        cp.checked = false;
+        cp.correctVerdict = undefined;
+      });
+    });
+
+    this.state.authenticity.currentRelic = null;
+    this.state.authenticity.verifiedRelics = [];
+    this.state.authenticity.checkPointProgress = {};
+    this.state.authenticity.derivedPassword = '';
+    this.state.authenticity.attempts = 0;
+
+    this.authenticityRewards.forEach((reward, index) => {
+      reward.claimed = false;
+      this.state.authenticity.rewards[index].claimed = false;
+    });
+
+    const mechanism = this.mechanisms.find(m => m.type === 'authenticity');
+    if (mechanism) {
+      mechanism.solved = false;
+      this.state.solvedMechanisms = this.state.solvedMechanisms.filter(id => id !== mechanism.id);
+    }
+
+    eventBus.emit('authenticity:reset');
+    this.saveToStorage();
   }
 }
 

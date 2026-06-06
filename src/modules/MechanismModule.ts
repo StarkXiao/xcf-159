@@ -39,6 +39,8 @@ export class MechanismModule {
       eventBus.emit('restoration:open', { mechanismId: data.mechanismId });
     } else if (mechanism.type === 'linked') {
       this.showLinkedLock(mechanism);
+    } else if (mechanism.type === 'authenticity') {
+      this.showAuthenticityPanel(mechanism);
     }
   }
 
@@ -64,10 +66,14 @@ export class MechanismModule {
       Animator.delay(1500).then(() => {
         eventBus.emit('game:complete');
       });
+    } else if (data.reward === 'unlock_auth_final') {
+      Animator.delay(1500).then(() => {
+        this.showChapterUnlockAnimation('第五章：真伪鉴定', '珍藏密室已开放');
+      });
     }
   }
 
-  private showChapterUnlockAnimation(title: string): void {
+  private showChapterUnlockAnimation(title: string, description?: string): void {
     const panel = new PIXI.Container();
 
     const overlay = new PIXI.Graphics();
@@ -93,7 +99,8 @@ export class MechanismModule {
     titleText.y = GAME_CONFIG.DESIGN_HEIGHT / 2;
     panel.addChild(titleText);
 
-    const desc = new PIXI.Text('双馆并行调查模式已开启\n在历史馆与艺术馆间交叉取证', {
+    const defaultDesc = '双馆并行调查模式已开启\n在历史馆与艺术馆间交叉取证';
+    const desc = new PIXI.Text(description || defaultDesc, {
       fontFamily: GAME_CONFIG.FONTS.BODY,
       fontSize: 24,
       fill: 0xFFFFFF,
@@ -1063,6 +1070,917 @@ export class MechanismModule {
       this.clearSequence(slotContainer);
     });
     lockPanel.addChild(clearBtn);
+  }
+
+  private showAuthenticityPanel(mechanism: Mechanism): void {
+    const relicIds = mechanism.authenticityRelicIds || [];
+    const relics = relicIds.map(id => store.getAuthenticityRelicById(id)).filter(Boolean);
+
+    const panel = new PIXI.Container();
+    this.lockPanel = panel;
+
+    const overlay = new PIXI.Graphics();
+    overlay.beginFill(0x000000, 0.9);
+    overlay.drawRect(0, 0, GAME_CONFIG.DESIGN_WIDTH, GAME_CONFIG.DESIGN_HEIGHT);
+    overlay.endFill();
+    panel.addChild(overlay);
+
+    this.renderAuthenticityMain(mechanism, relics);
+
+    panel.alpha = 0;
+    this.container.addChild(panel);
+
+    Animator.animate(
+      300,
+      (progress) => {
+        panel.alpha = progress;
+        panel.scale.set(0.9 + progress * 0.1);
+      },
+      undefined,
+      Animator.easeOutCubic
+    );
+  }
+
+  private renderAuthenticityMain(mechanism: Mechanism, relics: any[]): void {
+    if (!this.lockPanel) return;
+
+    while (this.lockPanel.children.length > 1) {
+      this.lockPanel.removeChildAt(1);
+    }
+
+    const content = new PIXI.Container();
+
+    const mainPanel = new PIXI.Graphics();
+    mainPanel.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.95);
+    mainPanel.lineStyle(4, GAME_CONFIG.COLORS.AMBER, 1);
+    mainPanel.drawRoundedRect(50, 150, 650, 1000, 20);
+    mainPanel.endFill();
+    content.addChild(mainPanel);
+
+    const icon = new PIXI.Text('🔍', { fontSize: 64 });
+    icon.anchor.set(0.5);
+    icon.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    icon.y = 230;
+    content.addChild(icon);
+
+    const title = new PIXI.Text('藏品真伪鉴定', {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 36,
+      fill: GAME_CONFIG.COLORS.AMBER,
+      align: 'center'
+    });
+    title.anchor.set(0.5);
+    title.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    title.y = 300;
+    content.addChild(title);
+
+    const desc = new PIXI.Text('仔细检查每件藏品，判断真伪，推导密码', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 20,
+      fill: 0xAAAAAA,
+      align: 'center'
+    });
+    desc.anchor.set(0.5);
+    desc.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    desc.y = 350;
+    content.addChild(desc);
+
+    const derivedPassword = store.getDerivedPassword();
+    const passwordDisplay = new PIXI.Text(`已推导密码: ${derivedPassword || '????'}`, {
+      fontFamily: 'monospace',
+      fontSize: 28,
+      fill: GAME_CONFIG.COLORS.GOLD,
+      align: 'center',
+      letterSpacing: 8
+    });
+    passwordDisplay.anchor.set(0.5);
+    passwordDisplay.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    passwordDisplay.y = 400;
+    content.addChild(passwordDisplay);
+
+    const attempts = store.getAuthenticityAttempts();
+    const attemptsText = new PIXI.Text(`剩余尝试次数: ${attempts.max - attempts.current}`, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: attempts.current >= attempts.max ? GAME_CONFIG.COLORS.WARM_ORANGE : 0x888888,
+      align: 'center'
+    });
+    attemptsText.anchor.set(0.5);
+    attemptsText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    attemptsText.y = 440;
+    content.addChild(attemptsText);
+
+    let yOffset = 490;
+    relics.forEach((relic) => {
+      const verified = relic.verified;
+      const progress = store.getCheckPointProgress(relic.id);
+      const canSubmit = store.canSubmitVerdict(relic.id);
+
+      const relicBg = new PIXI.Graphics();
+      relicBg.beginFill(verified
+        ? (relic.verdict === 'genuine' ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.WARM_ORANGE)
+        : GAME_CONFIG.COLORS.BRONZE, 0.3);
+      relicBg.lineStyle(2, verified ? GAME_CONFIG.COLORS.GOLD : GAME_CONFIG.COLORS.AMBER, 0.6);
+      relicBg.drawRoundedRect(80, yOffset, 590, 130, 15);
+      relicBg.endFill();
+      content.addChild(relicBg);
+
+      const relicIcon = new PIXI.Text(relic.icon, { fontSize: 40 });
+      relicIcon.anchor.set(0.5);
+      relicIcon.x = 140;
+      relicIcon.y = yOffset + 65;
+      content.addChild(relicIcon);
+
+      const relicName = new PIXI.Text(relic.name, {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 22,
+        fill: 0xFFFFFF
+      });
+      relicName.x = 200;
+      relicName.y = yOffset + 30;
+      content.addChild(relicName);
+
+      const statusText = verified
+        ? (relic.verdict === 'genuine' ? '✓ 鉴定为真品' : '✗ 鉴定为仿品')
+        : (canSubmit ? '！ 可提交鉴定' : `检查进度: ${progress}%`);
+      const statusColor = verified
+        ? (relic.verdict === 'genuine' ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.WARM_ORANGE)
+        : (canSubmit ? GAME_CONFIG.COLORS.GOLD : 0x888888);
+      const relicStatus = new PIXI.Text(statusText, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: statusColor
+      });
+      relicStatus.x = 200;
+      relicStatus.y = yOffset + 65;
+      content.addChild(relicStatus);
+
+      const progressBg = new PIXI.Graphics();
+      progressBg.beginFill(0x000000, 0.5);
+      progressBg.drawRoundedRect(200, yOffset + 95, 300, 12, 6);
+      progressBg.endFill();
+      content.addChild(progressBg);
+
+      const progressFill = new PIXI.Graphics();
+      progressFill.beginFill(GAME_CONFIG.COLORS.AMBER, 0.8);
+      progressFill.drawRoundedRect(200, yOffset + 95, 300 * (progress / 100), 12, 6);
+      progressFill.endFill();
+      content.addChild(progressFill);
+
+      const btnBg = new PIXI.Graphics();
+      btnBg.beginFill(GAME_CONFIG.COLORS.AMBER, 0.9);
+      btnBg.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 1);
+      btnBg.drawRoundedRect(520, yOffset + 40, 120, 50, 10);
+      btnBg.endFill();
+      btnBg.eventMode = 'static';
+      btnBg.cursor = 'pointer';
+      content.addChild(btnBg);
+
+      const btnText = new PIXI.Text(verified ? '查看' : '鉴定', {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 18,
+        fill: GAME_CONFIG.COLORS.DARK_BROWN
+      });
+      btnText.anchor.set(0.5);
+      btnText.x = 580;
+      btnText.y = yOffset + 65;
+      content.addChild(btnText);
+
+      btnBg.on('pointerdown', () => {
+        audioModule.playSFX('sfx_click');
+        store.setCurrentAuthenticityRelic(relic.id);
+        this.renderAuthenticityDetail(mechanism, relics, relic);
+      });
+
+      yOffset += 150;
+    });
+
+    const allVerified = relics.every(r => r.verified);
+    if (allVerified && !store.isAuthenticityComplete()) {
+      const passwordBtn = this.createButton('输入密码', 275, yOffset + 20);
+      passwordBtn.on('pointerdown', () => {
+        audioModule.playSFX('sfx_click');
+        this.showAuthenticityPasswordInput(mechanism, relics);
+      });
+      content.addChild(passwordBtn);
+    }
+
+    const closeBtn = this.createCloseButton();
+    closeBtn.x = 630;
+    closeBtn.y = 170;
+    content.addChild(closeBtn);
+
+    this.lockPanel.addChild(content);
+  }
+
+  private renderAuthenticityDetail(mechanism: Mechanism, relics: any[], currentRelic: any): void {
+    if (!this.lockPanel) return;
+
+    while (this.lockPanel.children.length > 1) {
+      this.lockPanel.removeChildAt(1);
+    }
+
+    const content = new PIXI.Container();
+
+    const mainPanel = new PIXI.Graphics();
+    mainPanel.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.95);
+    mainPanel.lineStyle(4, GAME_CONFIG.COLORS.AMBER, 1);
+    mainPanel.drawRoundedRect(50, 150, 650, 1000, 20);
+    mainPanel.endFill();
+    content.addChild(mainPanel);
+
+    const backBtn = new PIXI.Graphics();
+    backBtn.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.8);
+    backBtn.drawRoundedRect(70, 170, 100, 50, 10);
+    backBtn.endFill();
+    backBtn.eventMode = 'static';
+    backBtn.cursor = 'pointer';
+    content.addChild(backBtn);
+
+    const backText = new PIXI.Text('← 返回', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: 0xFFFFFF
+    });
+    backText.anchor.set(0.5);
+    backText.x = 120;
+    backText.y = 195;
+    content.addChild(backText);
+
+    backBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      store.setCurrentAuthenticityRelic(null);
+      this.renderAuthenticityMain(mechanism, relics);
+    });
+
+    const relicIcon = new PIXI.Text(currentRelic.icon, { fontSize: 80 });
+    relicIcon.anchor.set(0.5);
+    relicIcon.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    relicIcon.y = 270;
+    content.addChild(relicIcon);
+
+    const relicName = new PIXI.Text(currentRelic.name, {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 32,
+      fill: GAME_CONFIG.COLORS.AMBER,
+      align: 'center'
+    });
+    relicName.anchor.set(0.5);
+    relicName.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    relicName.y = 350;
+    content.addChild(relicName);
+
+    const relicDesc = new PIXI.Text(currentRelic.description, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: 0xAAAAAA,
+      align: 'center',
+      wordWrap: true,
+      wordWrapWidth: 580
+    });
+    relicDesc.anchor.set(0.5);
+    relicDesc.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    relicDesc.y = 410;
+    content.addChild(relicDesc);
+
+    const hintTitle = new PIXI.Text('鉴定要点', {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 24,
+      fill: GAME_CONFIG.COLORS.GOLD
+    });
+    hintTitle.x = 80;
+    hintTitle.y = 470;
+    content.addChild(hintTitle);
+
+    let yOffset = 510;
+    currentRelic.checkPoints.forEach((cp: any) => {
+      const checked = cp.checked;
+      const correct = cp.correctVerdict;
+
+      const cpBg = new PIXI.Graphics();
+      cpBg.beginFill(checked
+        ? (correct ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.WARM_ORANGE)
+        : GAME_CONFIG.COLORS.BRONZE, 0.3);
+      cpBg.lineStyle(2, checked ? GAME_CONFIG.COLORS.GOLD : GAME_CONFIG.COLORS.AMBER, 0.6);
+      cpBg.drawRoundedRect(80, yOffset, 590, 90, 10);
+      cpBg.endFill();
+      content.addChild(cpBg);
+
+      const cpIcon = new PIXI.Text(cp.icon, { fontSize: 28 });
+      cpIcon.anchor.set(0.5);
+      cpIcon.x = 130;
+      cpIcon.y = yOffset + 45;
+      content.addChild(cpIcon);
+
+      const cpName = new PIXI.Text(cp.name, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 20,
+        fill: 0xFFFFFF
+      });
+      cpName.x = 180;
+      cpName.y = yOffset + 20;
+      content.addChild(cpName);
+
+      const cpDesc = new PIXI.Text(cp.description, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 14,
+        fill: 0x888888
+      });
+      cpDesc.x = 180;
+      cpDesc.y = yOffset + 50;
+      content.addChild(cpDesc);
+
+      if (!checked && !currentRelic.verified) {
+        const genuineBtn = this.createVerdictButton('真品', 420, yOffset + 15, true);
+        genuineBtn.on('pointerdown', () => {
+          audioModule.playSFX('sfx_click');
+          this.checkAuthenticityPoint(mechanism, relics, currentRelic, cp, 'genuine');
+        });
+        content.addChild(genuineBtn);
+
+        const fakeBtn = this.createVerdictButton('仿品', 530, yOffset + 15, false);
+        fakeBtn.on('pointerdown', () => {
+          audioModule.playSFX('sfx_click');
+          this.checkAuthenticityPoint(mechanism, relics, currentRelic, cp, 'fake');
+        });
+        content.addChild(fakeBtn);
+      } else if (checked) {
+        const resultText = new PIXI.Text(
+          correct ? '✓ 判断正确' : '✗ 判断错误',
+          {
+            fontFamily: GAME_CONFIG.FONTS.BODY,
+            fontSize: 16,
+            fill: correct ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.WARM_ORANGE
+          }
+        );
+        resultText.x = 450;
+        resultText.y = yOffset + 35;
+        content.addChild(resultText);
+      }
+
+      yOffset += 100;
+    });
+
+    const canSubmit = store.canSubmitVerdict(currentRelic.id);
+    if (canSubmit && !currentRelic.verified) {
+      const submitTitle = new PIXI.Text('最终判定', {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 22,
+        fill: GAME_CONFIG.COLORS.GOLD
+      });
+      submitTitle.anchor.set(0.5);
+      submitTitle.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+      submitTitle.y = yOffset + 20;
+      content.addChild(submitTitle);
+
+      const finalGenuineBtn = this.createButton('判定为真品', 130, yOffset + 60);
+      finalGenuineBtn.on('pointerdown', () => {
+        audioModule.playSFX('sfx_click');
+        this.submitRelicVerdict(mechanism, relics, currentRelic, 'genuine');
+      });
+      content.addChild(finalGenuineBtn);
+
+      const finalFakeBtn = this.createButton('判定为仿品', 420, yOffset + 60, true);
+      finalFakeBtn.on('pointerdown', () => {
+        audioModule.playSFX('sfx_click');
+        this.submitRelicVerdict(mechanism, relics, currentRelic, 'fake');
+      });
+      content.addChild(finalFakeBtn);
+    } else if (currentRelic.verified) {
+      const isCorrect = (currentRelic.verdict === 'genuine' && currentRelic.isGenuine) ||
+                      (currentRelic.verdict === 'fake' && !currentRelic.isGenuine);
+      const verdictText = new PIXI.Text(
+        isCorrect
+        ? `✓ 鉴定正确！${currentRelic.isGenuine ? '这是一件真品' : '这是一件仿品'}`
+        : `✗ 鉴定错误！${currentRelic.isGenuine ? '这其实是真品' : '这其实是仿品'}`,
+        {
+          fontFamily: GAME_CONFIG.FONTS.BODY,
+          fontSize: 20,
+          fill: isCorrect ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.WARM_ORANGE,
+          align: 'center'
+        }
+      );
+      verdictText.anchor.set(0.5);
+      verdictText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+      verdictText.y = yOffset + 40;
+      content.addChild(verdictText);
+
+      const detailText = new PIXI.Text(
+        currentRelic.isGenuine ? currentRelic.genuineDescription : currentRelic.fakeDescription,
+        {
+          fontFamily: GAME_CONFIG.FONTS.BODY,
+          fontSize: 16,
+          fill: 0xAAAAAA,
+          align: 'center',
+          wordWrap: true,
+          wordWrapWidth: 580
+        }
+      );
+      detailText.anchor.set(0.5);
+      detailText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+      detailText.y = yOffset + 90;
+      content.addChild(detailText);
+
+      if (isCorrect) {
+        const clueText = new PIXI.Text(`密码线索: ${currentRelic.passwordClue}`, {
+          fontFamily: GAME_CONFIG.FONTS.BODY,
+          fontSize: 18,
+          fill: GAME_CONFIG.COLORS.GOLD,
+          align: 'center'
+        });
+        clueText.anchor.set(0.5);
+        clueText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+        clueText.y = yOffset + 150;
+        content.addChild(clueText);
+      }
+    }
+
+    const closeBtn = this.createCloseButton();
+    closeBtn.x = 630;
+    closeBtn.y = 170;
+    content.addChild(closeBtn);
+
+    this.lockPanel.addChild(content);
+  }
+
+  private createVerdictButton(text: string, x: number, y: number, isGenuine: boolean): PIXI.Graphics {
+    const btn = new PIXI.Graphics();
+    const color = isGenuine ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.WARM_ORANGE;
+    btn.beginFill(color, 0.9);
+    btn.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 1);
+    btn.drawRoundedRect(0, 0, 90, 60, 8);
+    btn.endFill();
+
+    const btnText = new PIXI.Text(text, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 16,
+      fill: 0xFFFFFF
+    });
+    btnText.anchor.set(0.5);
+    btnText.x = 45;
+    btnText.y = 30;
+    btn.addChild(btnText);
+
+    btn.x = x;
+    btn.y = y;
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+
+    btn.on('pointerover', () => {
+      Animator.tween(btn.scale, { x: 1.05, y: 1.05 }, 150);
+    });
+
+    btn.on('pointerout', () => {
+      Animator.tween(btn.scale, { x: 1, y: 1 }, 150);
+    });
+
+    return btn;
+  }
+
+  private checkAuthenticityPoint(mechanism: Mechanism, relics: any[], relic: any, checkPoint: any, verdict: 'genuine' | 'fake'): void {
+    const result = store.checkAuthenticityCheckPoint(relic.id, checkPoint.id, verdict);
+
+    if (!this.lockPanel) return;
+
+    const hint = new PIXI.Text(
+      result.correct ? '✓ 判断正确！' : '✗ 判断错误！',
+      {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 24,
+        fill: result.correct ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.WARM_ORANGE,
+        align: 'center'
+      }
+    );
+    hint.anchor.set(0.5);
+    hint.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    hint.y = GAME_CONFIG.DESIGN_HEIGHT / 2 - 50;
+    hint.alpha = 0;
+    this.lockPanel.addChild(hint);
+
+    const evidence = new PIXI.Text(result.evidence, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: 0xFFFFFF,
+      align: 'center',
+      wordWrap: true,
+      wordWrapWidth: 500
+    });
+    evidence.anchor.set(0.5);
+    evidence.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    evidence.y = GAME_CONFIG.DESIGN_HEIGHT / 2 + 20;
+    evidence.alpha = 0;
+    this.lockPanel.addChild(evidence);
+
+    Animator.animate(
+      300,
+      (p) => { hint.alpha = p; evidence.alpha = p; },
+      () => {
+        Animator.delay(2000).then(() => {
+          this.renderAuthenticityDetail(mechanism, relics, relic);
+        });
+      }
+    );
+
+    if (result.correct) {
+      audioModule.playSFX('sfx_success');
+    } else {
+      audioModule.playSFX('sfx_error');
+    }
+  }
+
+  private submitRelicVerdict(mechanism: Mechanism, relics: any[], relic: any, verdict: 'genuine' | 'fake'): void {
+    const result = store.submitRelicVerdict(relic.id, verdict);
+
+    if (!this.lockPanel) return;
+
+    const resultIcon = new PIXI.Text(result.correct ? '🎉' : '😔', { fontSize: 80 });
+    resultIcon.anchor.set(0.5);
+    resultIcon.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    resultIcon.y = GAME_CONFIG.DESIGN_HEIGHT / 2 - 100;
+    resultIcon.alpha = 0;
+    this.lockPanel.addChild(resultIcon);
+
+    const resultText = new PIXI.Text(
+      result.correct ? '鉴定正确！' : '鉴定错误...',
+      {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 36,
+        fill: result.correct ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.WARM_ORANGE,
+        align: 'center'
+      }
+    );
+    resultText.anchor.set(0.5);
+    resultText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    resultText.y = GAME_CONFIG.DESIGN_HEIGHT / 2 - 30;
+    resultText.alpha = 0;
+    this.lockPanel.addChild(resultText);
+
+    let detailTextContent = result.correct
+      ? `获得密码数字: 第${result.position}位是 ${result.digit}`
+      : `很遗憾，这件藏品的真伪判断有误`;
+    const detailText = new PIXI.Text(detailTextContent, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 24,
+      fill: 0xFFFFFF,
+      align: 'center',
+      wordWrap: true,
+      wordWrapWidth: 500
+    });
+    detailText.anchor.set(0.5);
+    detailText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    detailText.y = GAME_CONFIG.DESIGN_HEIGHT / 2 + 30;
+    detailText.alpha = 0;
+    this.lockPanel.addChild(detailText);
+
+    if (result.correct) {
+      const clueText = new PIXI.Text(`线索: ${result.clue}`, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 18,
+        fill: GAME_CONFIG.COLORS.GOLD,
+        align: 'center',
+        wordWrap: true,
+        wordWrapWidth: 500
+      });
+      clueText.anchor.set(0.5);
+      clueText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+      clueText.y = GAME_CONFIG.DESIGN_HEIGHT / 2 + 80;
+      clueText.alpha = 0;
+      this.lockPanel.addChild(clueText);
+
+      Animator.animate(
+        500,
+        (p) => { resultIcon.alpha = p; resultText.alpha = p; detailText.alpha = p; clueText.alpha = p; },
+        () => {
+          Animator.delay(2500).then(() => {
+            this.renderAuthenticityMain(mechanism, relics);
+          });
+        }
+      );
+      audioModule.playSFX('sfx_success');
+      audioModule.playSFX('sfx_unlock');
+    } else {
+      Animator.animate(
+        500,
+        (p) => { resultIcon.alpha = p; resultText.alpha = p; detailText.alpha = p; },
+        () => {
+          Animator.delay(2000).then(() => {
+            this.renderAuthenticityMain(mechanism, relics);
+          });
+        }
+      );
+      audioModule.playSFX('sfx_error');
+    }
+  }
+
+  private showAuthenticityPasswordInput(mechanism: Mechanism, relics: any[]): void {
+    if (!this.lockPanel) return;
+
+    while (this.lockPanel.children.length > 1) {
+      this.lockPanel.removeChildAt(1);
+    }
+
+    const content = new PIXI.Container();
+
+    const mainPanel = new PIXI.Graphics();
+    mainPanel.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.95);
+    mainPanel.lineStyle(4, GAME_CONFIG.COLORS.AMBER, 1);
+    mainPanel.drawRoundedRect(50, 200, 650, 900, 20);
+    mainPanel.endFill();
+    content.addChild(mainPanel);
+
+    const icon = new PIXI.Text('🔐', { fontSize: 64 });
+    icon.anchor.set(0.5);
+    icon.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    icon.y = 300;
+    content.addChild(icon);
+
+    const title = new PIXI.Text('输入最终密码', {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 36,
+      fill: GAME_CONFIG.COLORS.AMBER,
+      align: 'center'
+    });
+    title.anchor.set(0.5);
+    title.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    title.y = 370;
+    content.addChild(title);
+
+    const hint = new PIXI.Text(`根据鉴定结果推导密码\n${mechanism.hint}`, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: 0xAAAAAA,
+      align: 'center',
+      wordWrap: true,
+      wordWrapWidth: 580
+    });
+    hint.anchor.set(0.5);
+    hint.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    hint.y = 430;
+    content.addChild(hint);
+
+    const derivedPassword = store.getDerivedPassword();
+    const derivedDisplay = new PIXI.Text(`已推导: ${derivedPassword}`, {
+      fontFamily: 'monospace',
+      fontSize: 28,
+      fill: GAME_CONFIG.COLORS.GOLD,
+      align: 'center',
+      letterSpacing: 8
+    });
+    derivedDisplay.anchor.set(0.5);
+    derivedDisplay.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    derivedDisplay.y = 490;
+    content.addChild(derivedDisplay);
+
+    const displayBg = new PIXI.Graphics();
+    displayBg.beginFill(0x000000, 0.8);
+    displayBg.lineStyle(3, GAME_CONFIG.COLORS.AMBER, 1);
+    displayBg.drawRoundedRect(150, 540, 450, 80, 10);
+    displayBg.endFill();
+    content.addChild(displayBg);
+
+    const displayText = new PIXI.Text('', {
+      fontFamily: 'monospace',
+      fontSize: 48,
+      fill: GAME_CONFIG.COLORS.GOLD,
+      align: 'center',
+      letterSpacing: 10
+    });
+    displayText.anchor.set(0.5);
+    displayText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    displayText.y = 580;
+    content.addChild(displayText);
+    (content as any).displayText = displayText;
+    this.inputValue = '';
+
+    const startX = 150;
+    const startY = 660;
+    const btnSize = 110;
+    const gap = 25;
+    const numbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '←'];
+
+    numbers.forEach((num, index) => {
+      if (num === '') return;
+
+      const row = Math.floor(index / 3);
+      const col = index % 3;
+      const x = startX + col * (btnSize + gap);
+      const y = startY + row * (btnSize + gap);
+
+      const btn = new PIXI.Graphics();
+      btn.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.8);
+      btn.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.8);
+      btn.drawRoundedRect(0, 0, btnSize, btnSize, 12);
+      btn.endFill();
+
+      const btnText = new PIXI.Text(num, {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 36,
+        fill: 0xFFFFFF
+      });
+      btnText.anchor.set(0.5);
+      btnText.x = btnSize / 2;
+      btnText.y = btnSize / 2;
+      btn.addChild(btnText);
+
+      btn.x = x;
+      btn.y = y;
+      btn.eventMode = 'static';
+      btn.cursor = 'pointer';
+
+      btn.on('pointerdown', () => {
+        audioModule.playSFX('sfx_click');
+        if (num === '←') {
+          this.inputValue = this.inputValue.slice(0, -1);
+        } else {
+          if (this.inputValue.length < 4) {
+            this.inputValue += num;
+          }
+        }
+        displayText.text = this.inputValue;
+      });
+
+      btn.on('pointerover', () => {
+        Animator.tween(btn.scale, { x: 1.05, y: 1.05 }, 100);
+      });
+
+      btn.on('pointerout', () => {
+        Animator.tween(btn.scale, { x: 1, y: 1 }, 100);
+      });
+
+      content.addChild(btn);
+    });
+
+    const attempts = store.getAuthenticityAttempts();
+    const attemptsText = new PIXI.Text(`剩余尝试: ${attempts.max - attempts.current}/${attempts.max}`, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: attempts.current >= attempts.max ? GAME_CONFIG.COLORS.WARM_ORANGE : 0x888888,
+      align: 'center'
+    });
+    attemptsText.anchor.set(0.5);
+    attemptsText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    attemptsText.y = 1050;
+    content.addChild(attemptsText);
+
+    const confirmBtn = this.createButton('确认', 420, 1080);
+    confirmBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      this.validateAuthenticityPassword(mechanism, relics);
+    });
+    content.addChild(confirmBtn);
+
+    const clearBtn = this.createButton('清除', 130, 1080, true);
+    clearBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      this.inputValue = '';
+      displayText.text = '';
+    });
+    content.addChild(clearBtn);
+
+    const backBtn = this.createButton('返回', 275, 1080, true);
+    backBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      this.renderAuthenticityMain(mechanism, relics);
+    });
+    content.addChild(backBtn);
+
+    const closeBtn = this.createCloseButton();
+    closeBtn.x = 630;
+    closeBtn.y = 220;
+    content.addChild(closeBtn);
+
+    this.lockPanel.addChild(content);
+  }
+
+  private validateAuthenticityPassword(mechanism: Mechanism, _relics: any[]): void {
+    const result = store.validateAuthenticityPassword(this.inputValue);
+
+    if (result.correct) {
+      audioModule.playSFX('sfx_success');
+      audioModule.playSFX('sfx_unlock');
+
+      if (this.lockPanel) {
+        const glow = new PIXI.Graphics();
+        glow.beginFill(GAME_CONFIG.COLORS.GOLD, 0);
+        glow.drawRoundedRect(50, 200, 650, 900, 20);
+        glow.endFill();
+        this.lockPanel.addChild(glow);
+
+        Animator.animate(
+          500,
+          (progress) => {
+            glow.clear();
+            glow.beginFill(GAME_CONFIG.COLORS.GOLD, progress * 0.4);
+            glow.drawRoundedRect(50, 200, 650, 900, 20);
+            glow.endFill();
+          },
+          () => {
+            Animator.delay(1500).then(() => {
+              this.showAuthenticityRewards(mechanism, result.rewards);
+            });
+          }
+        );
+      }
+    } else {
+      audioModule.playSFX('sfx_error');
+      const attempts = store.getAuthenticityAttempts();
+      if (attempts.current >= attempts.max) {
+        this.showHint(`机会已用完，鉴定失败\n将重置鉴定进度`);
+        Animator.delay(2000).then(() => {
+          store.resetAuthenticityProgress();
+          const updatedRelics = mechanism.authenticityRelicIds?.map(id => store.getAuthenticityRelicById(id)).filter(Boolean) || [];
+          this.renderAuthenticityMain(mechanism, updatedRelics);
+        });
+      } else {
+        this.showHint(`密码错误，请重试\n剩余${attempts.max - attempts.current}次机会`);
+      }
+      this.shakeAnimation();
+    }
+  }
+
+  private showAuthenticityRewards(mechanism: Mechanism, rewards: any[]): void {
+    if (!this.lockPanel) return;
+
+    while (this.lockPanel.children.length > 1) {
+      this.lockPanel.removeChildAt(1);
+    }
+
+    const content = new PIXI.Container();
+
+    const panel = new PIXI.Graphics();
+    panel.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.95);
+    panel.lineStyle(4, GAME_CONFIG.COLORS.GOLD, 1);
+    panel.drawRoundedRect(50, 200, 650, 900, 20);
+    panel.endFill();
+    content.addChild(panel);
+
+    const icon = new PIXI.Text('🏆', { fontSize: 80 });
+    icon.anchor.set(0.5);
+    icon.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    icon.y = 300;
+    content.addChild(icon);
+
+    const title = new PIXI.Text('鉴定完成！', {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 42,
+      fill: GAME_CONFIG.COLORS.AMBER,
+      align: 'center'
+    });
+    title.anchor.set(0.5);
+    title.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    title.y = 380;
+    content.addChild(title);
+
+    const rewardTitle = new PIXI.Text('获得奖励', {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 28,
+      fill: GAME_CONFIG.COLORS.GOLD
+    });
+    rewardTitle.x = 80;
+    rewardTitle.y = 450;
+    content.addChild(rewardTitle);
+
+    let yOffset = 500;
+    rewards.forEach((reward) => {
+      const rewardBg = new PIXI.Graphics();
+      rewardBg.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.3);
+      rewardBg.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.6);
+      rewardBg.drawRoundedRect(80, yOffset, 590, 80, 10);
+      rewardBg.endFill();
+      content.addChild(rewardBg);
+
+      const rewardIcon = new PIXI.Text(
+        reward.type === 'score' ? '⭐' :
+        reward.type === 'clue' ? '📜' :
+        reward.type === 'unlock' ? '🔓' : '📖',
+        { fontSize: 32 }
+      );
+      rewardIcon.anchor.set(0.5);
+      rewardIcon.x = 130;
+      rewardIcon.y = yOffset + 40;
+      content.addChild(rewardIcon);
+
+      const rewardDesc = new PIXI.Text(reward.description, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 18,
+        fill: 0xFFFFFF
+      });
+      rewardDesc.x = 180;
+      rewardDesc.y = yOffset + 30;
+      content.addChild(rewardDesc);
+
+      yOffset += 100;
+    });
+
+    const closeBtn = this.createButton('完成', 275, yOffset + 20);
+    closeBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      this.closeLock();
+      eventBus.emit('mechanism:solve', { mechanismId: mechanism.id, reward: mechanism.reward });
+    });
+    content.addChild(closeBtn);
+
+    this.lockPanel.addChild(content);
   }
 
   destroy(): void {

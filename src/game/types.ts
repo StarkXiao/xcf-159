@@ -54,9 +54,56 @@ export interface RestorationStep {
   icon: string;
 }
 
+export interface AuthenticityCheckPoint {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  isGenuine: boolean;
+  genuineEvidence: string;
+  fakeEvidence: string;
+  position: { x: number; y: number };
+  checked: boolean;
+  correctVerdict?: boolean;
+}
+
+export interface AuthenticityRelic {
+  id: string;
+  name: string;
+  description: string;
+  genuineDescription: string;
+  fakeDescription: string;
+  icon: string;
+  isGenuine: boolean;
+  chapterId: string;
+  checkPoints: AuthenticityCheckPoint[];
+  passwordClue: string;
+  passwordDigit: number;
+  digitPosition: number;
+  verified: boolean;
+  verdict?: 'genuine' | 'fake' | null;
+}
+
+export interface AuthenticityState {
+  currentRelic: string | null;
+  verifiedRelics: string[];
+  checkPointProgress: Record<string, string[]>;
+  derivedPassword: string;
+  attempts: number;
+  maxAttempts: number;
+  rewards: AuthenticityReward[];
+}
+
+export interface AuthenticityReward {
+  type: 'score' | 'clue' | 'unlock' | 'story';
+  value: number | string;
+  description: string;
+  claimed: boolean;
+}
+
 export interface Mechanism {
   id: string;
-  type: 'password' | 'sequence' | 'restoration' | 'linked';
+  type: 'password' | 'sequence' | 'restoration' | 'linked' | 'authenticity';
   answer: string | number[];
   reward: string;
   hint: string;
@@ -69,6 +116,7 @@ export interface Mechanism {
   requiredArtClues?: string[];
   linkedMechanismId?: string;
   linkedProgress?: number;
+  authenticityRelicIds?: string[];
 }
 
 export interface Chapter {
@@ -87,6 +135,7 @@ export interface Chapter {
     art: string;
     combined: string;
   };
+  isAuthenticity?: boolean;
 }
 
 export interface GameSettings {
@@ -321,4 +370,5 @@ export interface GameState {
   dualHall: DualHallState;
   visitorQuests: VisitorQuestState;
   readingRoom: ReadingRoomState;
+  authenticity: AuthenticityState;
 }

@@ -45,6 +45,16 @@ export const CHAPTERS: Chapter[] = [
       art: '流光溢彩的琥珀艺术，封存着永恒的美丽与动人的故事...',
       combined: '历史与艺术在此刻交融，青铜的厚重与琥珀的温润，共同谱写了一曲跨越时空的交响乐章。原来爷爷一直想告诉你的是——美，从来都有千种面貌，但爱，始终如一。'
     }
+  },
+  {
+    id: 'chapter_5',
+    title: '第五章：真伪鉴定',
+    description: '博物馆深处藏着爷爷一生的鉴定笔记。四件珍贵藏品等待着你的慧眼——是真品还是仿品？每一个细节都关乎真相，每一次判断都在推导密码。辨伪存真，揭开爷爷的终极秘密。',
+    exhibitions: ['exhibition_auth_1', 'exhibition_auth_final'],
+    requiredClues: ['clue_auth_1', 'clue_auth_2', 'clue_auth_3', 'clue_auth_4', 'clue_auth_final'],
+    storyText: '当最后一件藏品的鉴定结果尘埃落定，你终于明白了爷爷的良苦用心。辨伪存真，不仅是文物工作者的天职，更是对历史的尊重，对文明的守护。爷爷用一生践行的信念，现在交到了你的手中...',
+    completed: false,
+    isAuthenticity: true
   }
 ];
 
@@ -244,6 +254,32 @@ export const EXHIBITIONS: Exhibition[] = [
       { id: 'hs_a3_to_history', x: 50, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_history_3', hint: '前往历史馆', activated: false },
       { id: 'hs_a3_back', x: 600, y: 900, width: 120, height: 100, type: 'exit', targetId: 'exhibition_art_2', hint: '返回时光画廊', activated: false }
     ]
+  },
+  {
+    id: 'exhibition_auth_1',
+    name: '文物鉴定室',
+    bgColor: GAME_CONFIG.COLORS.DARK_BG,
+    description: '一间专业的文物鉴定工作室，配备了放大镜、紫外灯等专业设备。工作台上摆放着四件待鉴定的珍贵藏品，每一件都关系到一个重大的秘密。墙上挂着爷爷的鉴定笔记，记录着他一生的心血与智慧。',
+    unlocked: false,
+    hotspots: [
+      { id: 'hs_auth_1', x: 100, y: 350, width: 120, height: 120, type: 'clue', targetId: 'clue_auth_1', hint: '爷爷的鉴定笔记', activated: false },
+      { id: 'hs_auth_2', x: 300, y: 250, width: 120, height: 120, type: 'clue', targetId: 'clue_auth_2', hint: '专用放大镜', activated: false },
+      { id: 'hs_auth_3', x: 500, y: 350, width: 120, height: 120, type: 'clue', targetId: 'clue_auth_3', hint: '紫外荧光灯', activated: false },
+      { id: 'hs_auth_4', x: 200, y: 550, width: 120, height: 120, type: 'clue', targetId: 'clue_auth_4', hint: '收藏证书', activated: false },
+      { id: 'hs_mech_auth', x: 350, y: 750, width: 160, height: 160, type: 'mechanism', targetId: 'mech_authenticity', hint: '开始藏品真伪鉴定', activated: false },
+      { id: 'hs_back_auth', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_history_3', hint: '返回匠作坊', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_auth_final',
+    name: '爷爷的珍藏密室',
+    bgColor: GAME_CONFIG.COLORS.GOLD,
+    description: '鉴定室深处的密室，这里陈列着爷爷一生最珍贵的收藏。每一件文物都承载着深厚的历史意义，每一件背后都有一段动人的故事。柔和的灯光洒在文物上，仿佛在诉说着千年的时光。',
+    unlocked: false,
+    hotspots: [
+      { id: 'hs_final_story', x: 300, y: 500, width: 160, height: 160, type: 'mechanism', targetId: 'mech_auth_final', hint: '了解爷爷的故事', activated: false },
+      { id: 'hs_back_final', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_auth_1', hint: '返回鉴定室', activated: false }
+    ]
   }
 ];
 
@@ -334,5 +370,24 @@ export const MECHANISMS: Mechanism[] = [
     requiredHistoryClues: ['clue_h1', 'clue_h2', 'clue_h3', 'clue_shared_1', 'clue_shared_2'],
     requiredArtClues: ['clue_a1', 'clue_a2', 'clue_a3', 'clue_shared_1', 'clue_shared_2'],
     linkedProgress: 0
+  },
+  {
+    id: 'mech_authenticity',
+    type: 'authenticity',
+    answer: '6104',
+    reward: 'unlock_auth_final',
+    hint: '根据每件藏品的鉴定结果，按照藏品顺序推导四位密码。正确判断藏品真伪后，会获得对应的数字和位置线索。',
+    solved: false,
+    displayName: '藏品真伪鉴定',
+    authenticityRelicIds: ['relic_auth_1', 'relic_auth_2', 'relic_auth_3', 'relic_auth_4']
+  },
+  {
+    id: 'mech_auth_final',
+    type: 'password',
+    answer: '永恒',
+    reward: 'ending',
+    hint: '爷爷一生追求的答案...',
+    solved: false,
+    displayName: '爷爷的终极秘密'
   }
 ];
