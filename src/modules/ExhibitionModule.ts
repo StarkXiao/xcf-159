@@ -64,6 +64,9 @@ export class ExhibitionModule {
         this.showLockedHint('请先解开"修复室之门"的密码，才能进入文物修复室。');
       } else if (exhibitionId === 'exhibition_7') {
         this.showLockedHint('请先完成青铜鼎的修复工作，才能进入青铜珍品馆。');
+      } else if (exhibitionId.startsWith('exhibition_history_') || exhibitionId.startsWith('exhibition_art_')) {
+        const phase = exhibition?.phase || 1;
+        this.showLockedHint(`请先解开第${phase > 1 ? phase - 1 : '一'}阶段的联动机关，才能进入此展厅。`);
       }
       return;
     }
@@ -431,13 +434,29 @@ export class ExhibitionModule {
 
     switch (hotspot.type) {
       case 'clue':
+        const clue = store.getClueById(hotspot.targetId);
+        const isDualHallClue = clue && clue.chapterId === 'chapter_4';
+        const canCollect = isDualHallClue ? store.canCollectClue(hotspot.targetId) : true;
+
+        if (!canCollect) {
+          const requiredClue = store.getClueById(clue!.requiredClueFromOtherHall!);
+          this.showLockedHint(`需要先在${clue!.hallOrigin === 'history' ? '艺术馆' : '历史馆'}收集「${requiredClue?.name || '相关线索'}」后才能获取此线索`);
+          return;
+        }
+
         eventBus.emit('clue:collect', { clueId: hotspot.targetId });
-        const collected = store.collectClue(hotspot.targetId);
+
+        let collected: boolean;
+        if (isDualHallClue) {
+          collected = store.collectDualHallClue(hotspot.targetId);
+        } else {
+          collected = store.collectClue(hotspot.targetId);
+        }
+
         if (collected) {
           audioModule.playSFX('sfx_collect');
           this.removeHotspot(hotspot.id);
 
-          const clue = store.getClueById(hotspot.targetId);
           if (clue && clue.chapterId === 'chapter_3') {
             const materialMap: { [key: string]: string } = {
               'clue_11': 'material_1',
@@ -455,7 +474,12 @@ export class ExhibitionModule {
         break;
 
       case 'mechanism':
-        eventBus.emit('mechanism:open', { mechanismId: hotspot.targetId });
+        const mech = store.getMechanismById(hotspot.targetId);
+        if (mech?.isLinked && !store.canSolveLinkedMechanism(hotspot.targetId)) {
+          eventBus.emit('mechanism:open', { mechanismId: hotspot.targetId });
+        } else {
+          eventBus.emit('mechanism:open', { mechanismId: hotspot.targetId });
+        }
         break;
 
       case 'exit':

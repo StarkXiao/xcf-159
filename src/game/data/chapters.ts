@@ -289,7 +289,7 @@ export const MECHANISMS: Mechanism[] = [
     id: 'mech_5',
     type: 'password',
     answer: '1046',
-    reward: 'ending',
+    reward: 'unlock_chapter_4',
     hint: '商周时期开始的年份...',
     solved: false,
     displayName: '青铜密码'
