@@ -1,7 +1,7 @@
 import { Howl } from 'howler';
 import { store } from '../game/Store';
 import { eventBus } from '../game/EventBus';
-import { GameSettings } from '../game/types';
+import { GameSettings, AudioRecording } from '../game/types';
 
 export class AudioModule {
   private bgm: Howl | null = null;
@@ -11,6 +11,13 @@ export class AudioModule {
   private bgmMuted: boolean = false;
   private sfxVolume: number = 0.7;
   private sfxMuted: boolean = false;
+  private voiceCache: Map<string, Howl> = new Map();
+  private currentVoice: Howl | null = null;
+  private currentVoiceId: string = '';
+  private voiceVolume: number = 0.8;
+  private voiceMuted: boolean = false;
+  private bgmWasPlaying: boolean = false;
+  private bgmVolumeBeforeVoice: number = 0.5;
 
   constructor() {
     eventBus.on('audio:play', this.handlePlayAudio.bind(this));
@@ -225,10 +232,155 @@ export class AudioModule {
     return this.sfxVolume;
   }
 
+  playVoice(recordingId: string): boolean {
+    const recording = store.getRecordingById(recordingId);
+    if (!recording || !recording.unlocked) return false;
+
+    this.stopVoice();
+
+    this.bgmWasPlaying = this.bgm !== null && this.currentBgmName !== '';
+    if (this.bgmWasPlaying && this.bgm) {
+      this.bgmVolumeBeforeVoice = this.bgm.volume();
+      this.bgm.fade(this.bgmVolumeBeforeVoice, this.bgmVolumeBeforeVoice * 0.2, 500);
+    }
+
+    const volume = this.voiceMuted ? 0 : this.voiceVolume;
+    let voice = this.voiceCache.get(recordingId);
+    if (!voice) {
+      voice = this.createVoiceAudio(recording, volume);
+      this.voiceCache.set(recordingId, voice);
+    } else {
+      voice.volume(volume);
+      voice.mute(this.voiceMuted);
+    }
+
+    voice.once('end', () => {
+      this.handleVoiceEnd();
+    });
+
+    voice.play();
+    this.currentVoice = voice;
+    this.currentVoiceId = recordingId;
+
+    store.markRecordingAsPlayed(recordingId);
+    eventBus.emit('voice:play', { recordingId });
+
+    return true;
+  }
+
+  private createVoiceAudio(recording: AudioRecording, volume: number): Howl {
+    return new Howl({
+      src: [this.generateVoiceTone(recording.frequency, recording.duration)],
+      loop: false,
+      volume,
+      format: ['wav']
+    });
+  }
+
+  private generateVoiceTone(frequency: number, duration: number): string {
+    const sampleRate = 44100;
+    const numSamples = Math.floor(sampleRate * duration);
+    const buffer = new AudioContext().createBuffer(1, numSamples, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      const envelope = Math.exp(-t * 0.5) * 0.5 + 0.5;
+      const tone = Math.sin(2 * Math.PI * frequency * t) * 0.25;
+      const overtone1 = Math.sin(2 * Math.PI * frequency * 1.5 * t) * 0.1;
+      const overtone2 = Math.sin(2 * Math.PI * frequency * 2 * t) * 0.08;
+      const tremolo = 1 + Math.sin(2 * Math.PI * 3 * t) * 0.05;
+      data[i] = (tone + overtone1 + overtone2) * envelope * tremolo;
+    }
+
+    const wav = this.bufferToWav(buffer);
+    return 'data:audio/wav;base64,' + btoa(wav);
+  }
+
+  pauseVoice(): void {
+    if (this.currentVoice) {
+      this.currentVoice.pause();
+      eventBus.emit('voice:pause', { recordingId: this.currentVoiceId });
+    }
+  }
+
+  resumeVoice(): void {
+    if (this.currentVoice) {
+      this.currentVoice.play();
+      eventBus.emit('voice:resume', { recordingId: this.currentVoiceId });
+    }
+  }
+
+  stopVoice(): void {
+    if (this.currentVoice) {
+      this.currentVoice.stop();
+      this.handleVoiceEnd();
+    }
+  }
+
+  private handleVoiceEnd(): void {
+    if (this.bgmWasPlaying && this.bgm) {
+      this.bgm.fade(this.bgm.volume(), this.bgmVolumeBeforeVoice, 500);
+      this.bgmWasPlaying = false;
+    }
+    const endedId = this.currentVoiceId;
+    this.currentVoice = null;
+    this.currentVoiceId = '';
+    eventBus.emit('voice:end', { recordingId: endedId });
+  }
+
+  getVoiceProgress(): number {
+    if (this.currentVoice) {
+      return this.currentVoice.seek() as number;
+    }
+    return 0;
+  }
+
+  getVoiceDuration(): number {
+    if (this.currentVoice) {
+      return this.currentVoice.duration();
+    }
+    return 0;
+  }
+
+  isVoicePlaying(): boolean {
+    return this.currentVoice !== null && this.currentVoice.playing();
+  }
+
+  getCurrentVoiceId(): string {
+    return this.currentVoiceId;
+  }
+
+  setVoiceVolume(volume: number): void {
+    this.voiceVolume = volume;
+    if (this.currentVoice && !this.voiceMuted) {
+      this.currentVoice.volume(volume);
+    }
+  }
+
+  toggleVoice(): boolean {
+    this.voiceMuted = !this.voiceMuted;
+    if (this.currentVoice) {
+      this.currentVoice.mute(this.voiceMuted);
+    }
+    return !this.voiceMuted;
+  }
+
+  getVoiceMuted(): boolean {
+    return this.voiceMuted;
+  }
+
+  getVoiceVolume(): number {
+    return this.voiceVolume;
+  }
+
   destroy(): void {
     this.stopBGM();
+    this.stopVoice();
     this.sfxCache.forEach(sfx => sfx.unload());
     this.sfxCache.clear();
+    this.voiceCache.forEach(voice => voice.unload());
+    this.voiceCache.clear();
     eventBus.off('audio:play', this.handlePlayAudio.bind(this));
     eventBus.off('settings:update', this.handleSettingsUpdate.bind(this));
   }

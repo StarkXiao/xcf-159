@@ -84,8 +84,8 @@ window.addEventListener('load', () => {
     },
 
     collectAllClues: () => {
-      const clues = store.getAllClues();
-      clues.forEach(clue => {
+      const clues = store.getClues();
+      clues.forEach((clue: { id: string; collected: boolean }) => {
         if (!clue.collected) {
           store.collectClue(clue.id);
           eventBus.emit('clue:collect', { clueId: clue.id });

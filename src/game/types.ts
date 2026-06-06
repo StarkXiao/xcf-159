@@ -57,15 +57,6 @@ export interface GameSettings {
   sfxMuted: boolean;
 }
 
-export interface GameState {
-  currentChapter: string;
-  currentExhibition: string;
-  collectedClues: string[];
-  solvedMechanisms: string[];
-  unlockedExhibitions: string[];
-  settings: GameSettings;
-}
-
 export type SceneType = 'start' | 'game' | 'end';
 
 export interface MemoryFragment {
@@ -73,4 +64,44 @@ export interface MemoryFragment {
   text: string;
   correctOrder: number;
   currentOrder: number;
+}
+
+export interface AudioRecording {
+  id: string;
+  chapterId: string;
+  title: string;
+  description: string;
+  transcript: string;
+  duration: number;
+  frequency: number;
+  unlocked: boolean;
+  played: boolean;
+  requiredClues?: string[];
+  requiredMemoryComplete?: boolean;
+}
+
+export interface ArchiveEntry {
+  id: string;
+  chapterId: string;
+  clueId: string;
+  archivedAt: number;
+  notes: string;
+}
+
+export interface ArchiveState {
+  unlockedRecordings: string[];
+  playedRecordings: string[];
+  archivedClues: string[];
+  archiveEntries: ArchiveEntry[];
+  completedChapters: string[];
+}
+
+export interface GameState {
+  currentChapter: string;
+  currentExhibition: string;
+  collectedClues: string[];
+  solvedMechanisms: string[];
+  unlockedExhibitions: string[];
+  settings: GameSettings;
+  archive: ArchiveState;
 }

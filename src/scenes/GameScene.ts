@@ -8,6 +8,7 @@ import { ClueModule } from '../modules/ClueModule';
 import { MemoryModule } from '../modules/MemoryModule';
 import { MechanismModule } from '../modules/MechanismModule';
 import { ChapterModule } from '../modules/ChapterModule';
+import { ArchiveModule } from '../modules/ArchiveModule';
 import { audioModule } from '../modules/AudioModule';
 
 export class GameScene extends Scene {
@@ -16,6 +17,7 @@ export class GameScene extends Scene {
   private memoryModule: MemoryModule | null = null;
   private mechanismModule: MechanismModule | null = null;
   private chapterModule: ChapterModule | null = null;
+  private archiveModule: ArchiveModule | null = null;
 
   private transitionOverlay: PIXI.Graphics | null = null;
 
@@ -29,6 +31,7 @@ export class GameScene extends Scene {
     this.memoryModule = new MemoryModule(this);
     this.mechanismModule = new MechanismModule(this);
     this.chapterModule = new ChapterModule(this);
+    this.archiveModule = new ArchiveModule(this);
 
     this.createParticles(25);
 
@@ -126,6 +129,9 @@ export class GameScene extends Scene {
     if (this.chapterModule) {
       this.chapterModule.update(delta);
     }
+    if (this.archiveModule) {
+      this.archiveModule.update(delta);
+    }
   }
 
   destroy(): void {
@@ -139,6 +145,7 @@ export class GameScene extends Scene {
     if (this.memoryModule) this.memoryModule.destroy();
     if (this.mechanismModule) this.mechanismModule.destroy();
     if (this.chapterModule) this.chapterModule.destroy();
+    if (this.archiveModule) this.archiveModule.destroy();
     if (this.transitionOverlay) this.transitionOverlay.destroy();
   }
 }

@@ -1,6 +1,7 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
+import { RECORDINGS } from './data/recordings';
 import { eventBus } from './EventBus';
 
 class Store {
@@ -9,6 +10,7 @@ class Store {
   private exhibitions: Exhibition[];
   private chapters: Chapter[];
   private mechanisms: Mechanism[];
+  private recordings: AudioRecording[];
 
   constructor() {
     const savedState = this.loadFromStorage();
@@ -16,6 +18,15 @@ class Store {
     this.exhibitions = JSON.parse(JSON.stringify(EXHIBITIONS));
     this.chapters = JSON.parse(JSON.stringify(CHAPTERS));
     this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS));
+    this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
+
+    const defaultArchive: ArchiveState = {
+      unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],
+      playedRecordings: [],
+      archivedClues: [],
+      archiveEntries: [],
+      completedChapters: []
+    };
 
     this.state = savedState || {
       currentChapter: 'chapter_1',
@@ -28,8 +39,13 @@ class Store {
         sfxVolume: 0.7,
         bgmMuted: false,
         sfxMuted: false
-      }
+      },
+      archive: defaultArchive
     };
+
+    if (!this.state.archive) {
+      this.state.archive = defaultArchive;
+    }
 
     this.applyStateToData();
   }
@@ -73,6 +89,17 @@ class Store {
       );
       if (allCluesCollected) ch.completed = true;
     });
+
+    if (this.state.archive) {
+      this.state.archive.unlockedRecordings.forEach(id => {
+        const rec = this.recordings.find(r => r.id === id);
+        if (rec) rec.unlocked = true;
+      });
+      this.state.archive.playedRecordings.forEach(id => {
+        const rec = this.recordings.find(r => r.id === id);
+        if (rec) rec.played = true;
+      });
+    }
   }
 
   getState(): GameState {
@@ -133,6 +160,8 @@ class Store {
     clue.collected = true;
     this.state.collectedClues.push(clueId);
 
+    this.checkAndUnlockRecordings(clueId);
+
     const currentChapter = this.getCurrentChapter();
     if (currentChapter) {
       const allCollected = currentChapter.requiredClues.every(id =>
@@ -160,6 +189,14 @@ class Store {
 
     if (mech.reward.startsWith('exhibition_')) {
       this.unlockExhibition(mech.reward);
+      const chapter = this.chapters.find(ch => ch.exhibitions.includes(mech.reward));
+      if (chapter) {
+        this.unlockChapterRecordings(chapter.id);
+      }
+    }
+
+    if (mech.reward === 'ending') {
+      this.unlockFinalRecording();
     }
 
     eventBus.emit('mechanism:solve', { mechanismId, reward: mech.reward });
@@ -208,20 +245,188 @@ class Store {
     return { ...this.state.settings };
   }
 
+  getRecordings(): AudioRecording[] {
+    return this.recordings.map(r => ({ ...r }));
+  }
+
+  getRecordingById(id: string): AudioRecording | undefined {
+    return this.recordings.find(r => r.id === id);
+  }
+
+  getUnlockedRecordings(): AudioRecording[] {
+    return this.recordings.filter(r => r.unlocked).map(r => ({ ...r }));
+  }
+
+  getRecordingsByChapter(chapterId: string): AudioRecording[] {
+    return this.recordings.filter(r => r.chapterId === chapterId).map(r => ({ ...r }));
+  }
+
+  getArchiveState(): ArchiveState {
+    return { ...this.state.archive };
+  }
+
+  unlockRecording(recordingId: string): boolean {
+    if (this.state.archive.unlockedRecordings.includes(recordingId)) return false;
+
+    const rec = this.recordings.find(r => r.id === recordingId);
+    if (!rec) return false;
+
+    rec.unlocked = true;
+    this.state.archive.unlockedRecordings.push(recordingId);
+
+    eventBus.emit('recording:unlock', { recordingId });
+    this.saveToStorage();
+    return true;
+  }
+
+  markRecordingAsPlayed(recordingId: string): boolean {
+    if (this.state.archive.playedRecordings.includes(recordingId)) return false;
+    if (!this.state.archive.unlockedRecordings.includes(recordingId)) return false;
+
+    const rec = this.recordings.find(r => r.id === recordingId);
+    if (!rec) return false;
+
+    rec.played = true;
+    this.state.archive.playedRecordings.push(recordingId);
+
+    eventBus.emit('recording:play', { recordingId });
+    this.saveToStorage();
+    return true;
+  }
+
+  archiveClue(clueId: string): boolean {
+    if (this.state.archive.archivedClues.includes(clueId)) return false;
+    if (!this.state.collectedClues.includes(clueId)) return false;
+
+    const clue = this.clues.find(c => c.id === clueId);
+    if (!clue) return false;
+
+    const entry: ArchiveEntry = {
+      id: `archive_${Date.now()}_${clueId}`,
+      chapterId: clue.chapterId,
+      clueId,
+      archivedAt: Date.now(),
+      notes: ''
+    };
+
+    this.state.archive.archivedClues.push(clueId);
+    this.state.archive.archiveEntries.push(entry);
+
+    eventBus.emit('clue:archived', { clueId, entry });
+    this.saveToStorage();
+
+    this.checkAndUnlockRecordings(clueId);
+    return true;
+  }
+
+  getArchivedClues(): Clue[] {
+    return this.clues.filter(c => this.state.archive.archivedClues.includes(c.id)).map(c => ({ ...c }));
+  }
+
+  getArchiveEntries(): ArchiveEntry[] {
+    return this.state.archive.archiveEntries.map(e => ({ ...e }));
+  }
+
+  getArchiveEntriesByChapter(chapterId: string): ArchiveEntry[] {
+    return this.state.archive.archiveEntries.filter(e => e.chapterId === chapterId).map(e => ({ ...e }));
+  }
+
+  completeChapterArchive(chapterId: string): boolean {
+    if (this.state.archive.completedChapters.includes(chapterId)) return false;
+
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter) return false;
+
+    const allCluesArchived = chapter.requiredClues.every(id =>
+      this.state.archive.archivedClues.includes(id)
+    );
+    if (!allCluesArchived) return false;
+
+    this.state.archive.completedChapters.push(chapterId);
+
+    eventBus.emit('archive:chapter-complete', { chapterId });
+    this.saveToStorage();
+
+    this.unlockChapterCompleteRecording(chapterId);
+    return true;
+  }
+
+  isChapterArchiveComplete(chapterId: string): boolean {
+    return this.state.archive.completedChapters.includes(chapterId);
+  }
+
+  completeChapter(chapterId: string): boolean {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter || chapter.completed) return false;
+
+    chapter.completed = true;
+    eventBus.emit('chapter:complete', { chapterId });
+    this.saveToStorage();
+    return true;
+  }
+
+  private checkAndUnlockRecordings(clueId: string): void {
+    this.recordings.forEach(rec => {
+      if (rec.unlocked) return;
+      if (rec.requiredClues && rec.requiredClues.includes(clueId)) {
+        const allCluesCollected = rec.requiredClues.every(
+          id => this.state.collectedClues.includes(id)
+        );
+        if (allCluesCollected) {
+          this.unlockRecording(rec.id);
+        }
+      }
+    });
+  }
+
+  unlockChapterCompleteRecording(chapterId: string): void {
+    const recording = this.recordings.find(
+      r => r.chapterId === chapterId && r.requiredMemoryComplete
+    );
+    if (recording && !recording.unlocked) {
+      this.unlockRecording(recording.id);
+    }
+  }
+
+  unlockChapterRecordings(chapterId: string): void {
+    const recording = this.recordings.find(
+      r => r.chapterId === chapterId && r.id === `rec_${chapterId.split('_')[1]}_unlock`
+    );
+    if (recording && !recording.unlocked) {
+      this.unlockRecording(recording.id);
+    }
+  }
+
+  unlockFinalRecording(): void {
+    const recording = this.recordings.find(r => r.id === 'rec_final');
+    if (recording && !recording.unlocked) {
+      this.unlockRecording(recording.id);
+    }
+  }
+
   resetGame(): void {
     localStorage.removeItem('amber-memory-hall-save');
     this.clues = JSON.parse(JSON.stringify(CLUES));
     this.exhibitions = JSON.parse(JSON.stringify(EXHIBITIONS));
     this.chapters = JSON.parse(JSON.stringify(CHAPTERS));
     this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS));
+    this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
     this.state = {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
       collectedClues: [],
       solvedMechanisms: [],
       unlockedExhibitions: ['exhibition_1', 'exhibition_2', 'exhibition_3'],
-      settings: this.state.settings
+      settings: this.state.settings,
+      archive: {
+        unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],
+        playedRecordings: [],
+        archivedClues: [],
+        archiveEntries: [],
+        completedChapters: []
+      }
     };
+    this.applyStateToData();
     eventBus.emit('game:reset');
   }
 
