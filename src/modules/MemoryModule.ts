@@ -397,12 +397,12 @@ export class MemoryModule {
   }
 
   private showSuccessEffect(): void {
-    eventBus.emit('memory:complete', { success: true });
-
     const chapter = store.getCurrentChapter();
     if (chapter) {
       store.completeChapterArchive(chapter.id);
     }
+
+    eventBus.emit('memory:complete', { success: true });
 
     const glow = new PIXI.Graphics();
     glow.beginFill(GAME_CONFIG.COLORS.GOLD, 0);

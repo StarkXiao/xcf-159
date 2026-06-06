@@ -963,16 +963,19 @@ export class ArchiveModule {
     audioModule.playSFX('sfx_success');
   }
 
-  private handleArchiveChapterComplete(data: { chapterId: string }): void {
-    eventBus.emit('archive:chapter-complete', { chapterId: data.chapterId });
+  private handleArchiveChapterComplete(_data: { chapterId: string }): void {
+    if (this.isArchiveOpen) {
+      this.refreshArchivePanel();
+    }
+    this.updateBadge();
   }
 
   private handleMemoryComplete(data: { success: boolean }): void {
     if (data.success) {
-      const chapter = store.getCurrentChapter();
-      if (chapter) {
-        store.unlockChapterCompleteRecording(chapter.id);
+      if (this.isArchiveOpen) {
+        this.refreshArchivePanel();
       }
+      this.updateBadge();
     }
   }
 
