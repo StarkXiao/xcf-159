@@ -30,14 +30,32 @@ export interface Exhibition {
   description: string;
 }
 
+export interface RestorationMaterial {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  collected: boolean;
+}
+
+export interface RestorationStep {
+  id: string;
+  order: number;
+  name: string;
+  description: string;
+  materialId: string;
+  icon: string;
+}
+
 export interface Mechanism {
   id: string;
-  type: 'password' | 'sequence';
+  type: 'password' | 'sequence' | 'restoration';
   answer: string | number[];
   reward: string;
   hint: string;
   solved: boolean;
   displayName: string;
+  relicId?: string;
 }
 
 export interface Chapter {
@@ -121,6 +139,25 @@ export interface NightPatrolState {
   totalEventsResolved: number;
 }
 
+export interface Relic {
+  id: string;
+  name: string;
+  description: string;
+  damagedDescription: string;
+  restoredDescription: string;
+  damagedIcon: string;
+  restoredIcon: string;
+  steps: RestorationStep[];
+  chapterId: string;
+  restored: boolean;
+}
+
+export interface RestorationState {
+  collectedMaterials: string[];
+  restoredRelics: string[];
+  currentRestoration: string | null;
+}
+
 export interface GameState {
   currentChapter: string;
   currentExhibition: string;
@@ -130,4 +167,5 @@ export interface GameState {
   settings: GameSettings;
   archive: ArchiveState;
   nightPatrol: NightPatrolState;
+  restoration: RestorationState;
 }

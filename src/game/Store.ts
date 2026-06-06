@@ -1,8 +1,9 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
 import { NIGHT_EVENTS } from './data/nightEvents';
+import { RELICS, RESTORATION_MATERIALS } from './data/restoration';
 import { eventBus } from './EventBus';
 
 class Store {
@@ -13,6 +14,8 @@ class Store {
   private mechanisms: Mechanism[];
   private recordings: AudioRecording[];
   private nightEvents: NightEvent[];
+  private relics: Relic[];
+  private restorationMaterials: RestorationMaterial[];
 
   constructor() {
     const savedState = this.loadFromStorage();
@@ -22,6 +25,8 @@ class Store {
     this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS));
     this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
     this.nightEvents = JSON.parse(JSON.stringify(NIGHT_EVENTS));
+    this.relics = JSON.parse(JSON.stringify(RELICS));
+    this.restorationMaterials = JSON.parse(JSON.stringify(RESTORATION_MATERIALS));
 
     const defaultArchive: ArchiveState = {
       unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],
@@ -40,6 +45,12 @@ class Store {
       totalEventsResolved: 0
     };
 
+    const defaultRestoration: RestorationState = {
+      collectedMaterials: [],
+      restoredRelics: [],
+      currentRestoration: null
+    };
+
     this.state = savedState || {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -53,7 +64,8 @@ class Store {
         sfxMuted: false
       },
       archive: defaultArchive,
-      nightPatrol: defaultNightPatrol
+      nightPatrol: defaultNightPatrol,
+      restoration: defaultRestoration
     };
 
     if (!this.state.archive) {
@@ -62,6 +74,10 @@ class Store {
 
     if (!this.state.nightPatrol) {
       this.state.nightPatrol = defaultNightPatrol;
+    }
+
+    if (!this.state.restoration) {
+      this.state.restoration = defaultRestoration;
     }
 
     this.applyStateToData();
@@ -130,6 +146,17 @@ class Store {
       this.state.nightPatrol.resetMechanisms.forEach(id => {
         const mech = this.mechanisms.find(m => m.id === id);
         if (mech) mech.solved = false;
+      });
+    }
+
+    if (this.state.restoration) {
+      this.state.restoration.collectedMaterials.forEach(id => {
+        const material = this.restorationMaterials.find(m => m.id === id);
+        if (material) material.collected = true;
+      });
+      this.state.restoration.restoredRelics.forEach(id => {
+        const relic = this.relics.find(r => r.id === id);
+        if (relic) relic.restored = true;
       });
     }
   }
@@ -444,6 +471,8 @@ class Store {
     this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS));
     this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
     this.nightEvents = JSON.parse(JSON.stringify(NIGHT_EVENTS));
+    this.relics = JSON.parse(JSON.stringify(RELICS));
+    this.restorationMaterials = JSON.parse(JSON.stringify(RESTORATION_MATERIALS));
     this.state = {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -465,6 +494,11 @@ class Store {
         resetMechanisms: [],
         patrolStartTime: 0,
         totalEventsResolved: 0
+      },
+      restoration: {
+        collectedMaterials: [],
+        restoredRelics: [],
+        currentRestoration: null
       }
     };
     this.applyStateToData();
@@ -607,6 +641,69 @@ class Store {
 
   getTotalEventsResolved(): number {
     return this.state.nightPatrol.totalEventsResolved;
+  }
+
+  getRestorationMaterials(): RestorationMaterial[] {
+    return this.restorationMaterials.map(m => ({ ...m }));
+  }
+
+  getRestorationMaterialById(id: string): RestorationMaterial | undefined {
+    return this.restorationMaterials.find(m => m.id === id);
+  }
+
+  getRelics(): Relic[] {
+    return this.relics.map(r => ({ ...r }));
+  }
+
+  getRelicById(id: string): Relic | undefined {
+    return this.relics.find(r => r.id === id);
+  }
+
+  getRestorationState(): RestorationState {
+    return { ...this.state.restoration };
+  }
+
+  collectMaterial(materialId: string): boolean {
+    if (this.state.restoration.collectedMaterials.includes(materialId)) return false;
+
+    const material = this.restorationMaterials.find(m => m.id === materialId);
+    if (!material) return false;
+
+    material.collected = true;
+    this.state.restoration.collectedMaterials.push(materialId);
+
+    eventBus.emit('restoration:material-collect', { materialId });
+    this.saveToStorage();
+    return true;
+  }
+
+  restoreRelic(relicId: string): boolean {
+    if (this.state.restoration.restoredRelics.includes(relicId)) return false;
+
+    const relic = this.relics.find(r => r.id === relicId);
+    if (!relic) return false;
+
+    relic.restored = true;
+    this.state.restoration.restoredRelics.push(relicId);
+
+    eventBus.emit('restoration:relic-restored', { relicId });
+    this.saveToStorage();
+    return true;
+  }
+
+  checkRestorationOrder(relicId: string, stepOrder: number[]): boolean {
+    const relic = this.relics.find(r => r.id === relicId);
+    if (!relic) return false;
+
+    const correctOrder = relic.steps.map(s => s.order).sort((a, b) => a - b);
+    if (stepOrder.length !== correctOrder.length) return false;
+
+    return stepOrder.every((val, idx) => val === correctOrder[idx]);
+  }
+
+  setCurrentRestoration(relicId: string | null): void {
+    this.state.restoration.currentRestoration = relicId;
+    this.saveToStorage();
   }
 }
 

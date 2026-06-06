@@ -32,8 +32,11 @@ export class MechanismModule {
 
     if (mechanism.type === 'password') {
       this.showPasswordLock(mechanism);
-    } else {
+    } else if (mechanism.type === 'sequence') {
       this.showSequenceLock(mechanism);
+    } else if (mechanism.type === 'restoration') {
+      this.isOpen = false;
+      eventBus.emit('restoration:open', { mechanismId: data.mechanismId });
     }
   }
 

@@ -429,6 +429,21 @@ export class ExhibitionModule {
         if (collected) {
           audioModule.playSFX('sfx_collect');
           this.removeHotspot(hotspot.id);
+
+          const clue = store.getClueById(hotspot.targetId);
+          if (clue && clue.chapterId === 'chapter_3') {
+            const materialMap: { [key: string]: string } = {
+              'clue_11': 'material_1',
+              'clue_12': 'material_2',
+              'clue_13': 'material_3',
+              'clue_14': 'material_4',
+              'clue_15': 'material_5'
+            };
+            const materialId = materialMap[hotspot.targetId];
+            if (materialId) {
+              store.collectMaterial(materialId);
+            }
+          }
         }
         break;
 

@@ -10,6 +10,7 @@ import { MechanismModule } from '../modules/MechanismModule';
 import { ChapterModule } from '../modules/ChapterModule';
 import { ArchiveModule } from '../modules/ArchiveModule';
 import { NightPatrolModule } from '../modules/NightPatrolModule';
+import { RestorationModule } from '../modules/RestorationModule';
 import { audioModule } from '../modules/AudioModule';
 
 export class GameScene extends Scene {
@@ -20,6 +21,7 @@ export class GameScene extends Scene {
   private chapterModule: ChapterModule | null = null;
   private archiveModule: ArchiveModule | null = null;
   private nightPatrolModule: NightPatrolModule | null = null;
+  private restorationModule: RestorationModule | null = null;
 
   private transitionOverlay: PIXI.Graphics | null = null;
 
@@ -35,6 +37,7 @@ export class GameScene extends Scene {
     this.chapterModule = new ChapterModule(this);
     this.archiveModule = new ArchiveModule(this);
     this.nightPatrolModule = new NightPatrolModule(this);
+    this.restorationModule = new RestorationModule(this);
 
     this.createParticles(25);
 
@@ -153,6 +156,7 @@ export class GameScene extends Scene {
     if (this.chapterModule) this.chapterModule.destroy();
     if (this.archiveModule) this.archiveModule.destroy();
     if (this.nightPatrolModule) this.nightPatrolModule.destroy();
+    if (this.restorationModule) this.restorationModule.destroy();
     if (this.transitionOverlay) this.transitionOverlay.destroy();
   }
 }

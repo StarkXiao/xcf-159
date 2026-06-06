@@ -96,5 +96,50 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_2',
     isMemory: false,
     collected: false
+  },
+  {
+    id: 'clue_11',
+    name: '精细砂纸',
+    description: '用于打磨文物表面的氧化层和锈迹，粒度均匀，不会损伤文物本体。这是文物修复的第一步，细心打磨才能露出文物本来的面貌。',
+    icon: '📜',
+    chapterId: 'chapter_3',
+    isMemory: false,
+    collected: false
+  },
+  {
+    id: 'clue_12',
+    name: '文物修复胶',
+    description: '特制的可逆性粘合剂，用于粘结断裂的文物部件，日后可安全溶解去除。修复师的巧手加上专业的粘合剂，让破碎的文物重获完整。',
+    icon: '🧪',
+    chapterId: 'chapter_3',
+    isMemory: false,
+    collected: false
+  },
+  {
+    id: 'clue_13',
+    name: '青铜补配粉',
+    description: '与青铜鼎成分相近的金属粉末，用于填补缺失的部分，使修复处浑然一体。每一次填补，都是对历史的尊重。',
+    icon: '✨',
+    chapterId: 'chapter_3',
+    isMemory: false,
+    collected: false
+  },
+  {
+    id: 'clue_14',
+    name: '抛光软布',
+    description: '超细纤维材质的软布，用于最后抛光，恢复文物原有的光泽。最后的打磨，让千年文物焕发新生。',
+    icon: '🧻',
+    chapterId: 'chapter_3',
+    isMemory: false,
+    collected: false
+  },
+  {
+    id: 'clue_15',
+    name: '专业镊子',
+    description: '精密不锈钢镊子，用于处理细小的碎片和残留物。每一个碎片都承载着历史的记忆，需要小心翼翼地归位。',
+    icon: '🔧',
+    chapterId: 'chapter_3',
+    isMemory: false,
+    collected: false
   }
 ];
