@@ -1,4 +1,4 @@
-import { Howl, Howler } from 'howler';
+import { Howl } from 'howler';
 import { store } from '../game/Store';
 import { eventBus } from '../game/EventBus';
 import { GameSettings } from '../game/types';
@@ -7,13 +7,20 @@ export class AudioModule {
   private bgm: Howl | null = null;
   private sfxCache: Map<string, Howl> = new Map();
   private currentBgmName: string = '';
+  private bgmVolume: number = 0.5;
+  private bgmMuted: boolean = false;
+  private sfxVolume: number = 0.7;
+  private sfxMuted: boolean = false;
 
   constructor() {
     eventBus.on('audio:play', this.handlePlayAudio.bind(this));
     eventBus.on('settings:update', this.handleSettingsUpdate.bind(this));
 
     const settings = store.getSettings();
-    this.applySettings(settings);
+    this.bgmVolume = settings.bgmVolume;
+    this.bgmMuted = settings.bgmMuted;
+    this.sfxVolume = settings.sfxVolume;
+    this.sfxMuted = settings.sfxMuted;
   }
 
   private handlePlayAudio(data: { type: 'bgm' | 'sfx'; name: string }): void {
@@ -29,8 +36,20 @@ export class AudioModule {
   }
 
   private applySettings(settings: GameSettings): void {
-    Howler.volume(settings.bgmMuted ? 0 : settings.bgmVolume);
-    Howler.mute(settings.bgmMuted || settings.sfxMuted);
+    this.bgmVolume = settings.bgmVolume;
+    this.bgmMuted = settings.bgmMuted;
+    this.sfxVolume = settings.sfxVolume;
+    this.sfxMuted = settings.sfxMuted;
+
+    if (this.bgm) {
+      this.bgm.volume(this.bgmMuted ? 0 : this.bgmVolume);
+      this.bgm.mute(this.bgmMuted);
+    }
+
+    this.sfxCache.forEach(sfx => {
+      sfx.volume(this.sfxVolume);
+      sfx.mute(this.sfxMuted);
+    });
   }
 
   playBGM(name: string): void {
@@ -38,15 +57,17 @@ export class AudioModule {
 
     this.stopBGM();
 
-    const settings = store.getSettings();
-    this.bgm = this.createAudio(name, true, settings.bgmVolume);
+    const volume = this.bgmMuted ? 0 : this.bgmVolume;
+    this.bgm = this.createAudio(name, true, volume);
+    this.bgm.mute(this.bgmMuted);
     this.currentBgmName = name;
     this.bgm.play();
   }
 
   stopBGM(): void {
     if (this.bgm) {
-      this.bgm.fade(Howler.volume(), 0, 500);
+      const currentVol = this.bgmMuted ? 0 : this.bgmVolume;
+      this.bgm.fade(currentVol, 0, 500);
       setTimeout(() => {
         this.bgm?.stop();
         this.bgm?.unload();
@@ -57,12 +78,12 @@ export class AudioModule {
   }
 
   playSFX(name: string): void {
-    const settings = store.getSettings();
-    if (settings.sfxMuted) return;
+    if (this.sfxMuted) return;
 
     let sfx = this.sfxCache.get(name);
     if (!sfx) {
-      sfx = this.createAudio(name, false, settings.sfxVolume);
+      sfx = this.createAudio(name, false, this.sfxVolume);
+      sfx.mute(this.sfxMuted);
       this.sfxCache.set(name, sfx);
     }
     sfx.play();
@@ -71,6 +92,7 @@ export class AudioModule {
   private createAudio(name: string, loop: boolean, volume: number): Howl {
     const frequency = name === 'bgm_main' ? 220 :
                       name === 'bgm_mystery' ? 180 :
+                      name === 'bgm_explore' ? 200 :
                       name === 'sfx_click' ? 800 :
                       name === 'sfx_collect' ? 600 :
                       name === 'sfx_success' ? 523 :
@@ -158,12 +180,18 @@ export class AudioModule {
   }
 
   setBGMVolume(volume: number): void {
-    Howler.volume(volume);
+    this.bgmVolume = volume;
+    if (this.bgm && !this.bgmMuted) {
+      this.bgm.volume(volume);
+    }
   }
 
   setSFXVolume(volume: number): void {
+    this.sfxVolume = volume;
     this.sfxCache.forEach(sfx => {
-      sfx.volume(volume);
+      if (!this.sfxMuted) {
+        sfx.volume(volume);
+      }
     });
   }
 
@@ -179,6 +207,22 @@ export class AudioModule {
     const newMuted = !settings.sfxMuted;
     store.updateSettings({ sfxMuted: newMuted });
     return !newMuted;
+  }
+
+  getBGMMuted(): boolean {
+    return this.bgmMuted;
+  }
+
+  getSFXMuted(): boolean {
+    return this.sfxMuted;
+  }
+
+  getBGMVolume(): number {
+    return this.bgmVolume;
+  }
+
+  getSFXVolume(): number {
+    return this.sfxVolume;
   }
 
   destroy(): void {

@@ -4,6 +4,7 @@ import { GAME_CONFIG } from '../game/config';
 import { Animator } from '../utils/Animator';
 import { audioModule } from '../modules/AudioModule';
 import { eventBus } from '../game/EventBus';
+import { store } from '../game/Store';
 
 export class StartScene extends Scene {
   private startButton: PIXI.Graphics | null = null;
@@ -254,7 +255,7 @@ export class StartScene extends Scene {
     const panel = new PIXI.Graphics();
     panel.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.95);
     panel.lineStyle(4, GAME_CONFIG.COLORS.AMBER, 1);
-    panel.drawRoundedRect(75, 350, 600, 500, 20);
+    panel.drawRoundedRect(75, 350, 600, 600, 20);
     panel.endFill();
     this.settingsPanel.addChild(panel);
 
@@ -268,11 +269,13 @@ export class StartScene extends Scene {
     title.y = 410;
     this.settingsPanel.addChild(title);
 
-    const bgmBtn = this.createToggleButton('背景音乐', 480, audioModule.toggleBGM());
-    this.settingsPanel.addChild(bgmBtn);
+    const bgmMuted = audioModule.getBGMMuted();
+    const sfxMuted = audioModule.getSFXMuted();
+    const bgmVolume = audioModule.getBGMVolume();
+    const sfxVolume = audioModule.getSFXVolume();
 
-    const sfxBtn = this.createToggleButton('音效', 580, audioModule.toggleSFX());
-    this.settingsPanel.addChild(sfxBtn);
+    this.createVolumeControl('背景音乐', 'bgm', bgmVolume, bgmMuted, 490);
+    this.createVolumeControl('音效', 'sfx', sfxVolume, sfxMuted, 620);
 
     const closeBtn = new PIXI.Graphics();
     closeBtn.beginFill(GAME_CONFIG.COLORS.AMBER, 0.9);
@@ -291,7 +294,7 @@ export class StartScene extends Scene {
     closeBtn.addChild(closeText);
 
     closeBtn.x = 275;
-    closeBtn.y = 700;
+    closeBtn.y = 780;
     closeBtn.eventMode = 'static';
     closeBtn.cursor = 'pointer';
     closeBtn.on('pointerdown', () => {
@@ -313,62 +316,100 @@ export class StartScene extends Scene {
     );
   }
 
-  private createToggleButton(label: string, y: number, initialState: boolean): PIXI.Container {
-    const container = new PIXI.Container();
+  private createVolumeControl(label: string, type: 'bgm' | 'sfx', volume: number, muted: boolean, y: number): void {
+    const panel = this.settingsPanel;
+    if (!panel) return;
+
+    const bg = new PIXI.Graphics();
+    bg.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.4);
+    bg.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.6);
+    bg.drawRoundedRect(100, y - 40, 550, 100, 12);
+    bg.endFill();
+    panel.addChild(bg);
 
     const labelText = new PIXI.Text(label, {
       fontFamily: GAME_CONFIG.FONTS.BODY,
-      fontSize: 24,
+      fontSize: 22,
       fill: GAME_CONFIG.COLORS.CREAM
     });
     labelText.x = 130;
-    labelText.y = y;
-    container.addChild(labelText);
+    labelText.y = y - 10;
+    panel.addChild(labelText);
 
-    const toggle = new PIXI.Graphics();
-    const state = { on: initialState };
+    const muteBtn = new PIXI.Graphics();
+    const muteColor = muted ? GAME_CONFIG.COLORS.WARM_ORANGE : GAME_CONFIG.COLORS.AMBER;
+    muteBtn.beginFill(muteColor, 0.8);
+    muteBtn.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 1);
+    muteBtn.drawRoundedRect(0, 0, 60, 40, 8);
+    muteBtn.endFill();
 
-    const renderToggle = () => {
-      toggle.clear();
-      toggle.beginFill(state.on ? GAME_CONFIG.COLORS.AMBER : GAME_CONFIG.COLORS.BRONZE, 0.8);
-      toggle.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 1);
-      toggle.drawRoundedRect(0, 0, 80, 40, 20);
-      toggle.endFill();
+    const muteIcon = new PIXI.Text(muted ? '🔇' : '🔊', { fontSize: 22 });
+    muteIcon.anchor.set(0.5);
+    muteIcon.x = 30;
+    muteIcon.y = 20;
+    muteBtn.addChild(muteIcon);
 
-      const handleX = state.on ? 45 : 5;
-      toggle.beginFill(GAME_CONFIG.COLORS.CREAM);
-      toggle.drawCircle(handleX + 15, 20, 14);
-      toggle.endFill();
-
-      const stateText = new PIXI.Text(state.on ? '开' : '关', {
-        fontSize: 14,
-        fill: state.on ? GAME_CONFIG.COLORS.DARK_BROWN : 0xFFFFFF
-      });
-      stateText.anchor.set(0.5);
-      stateText.x = state.on ? 20 : 60;
-      stateText.y = 20;
-      toggle.addChild(stateText);
-    };
-
-    renderToggle();
-    toggle.x = 450;
-    toggle.y = y - 5;
-    toggle.eventMode = 'static';
-    toggle.cursor = 'pointer';
-
-    toggle.on('pointerdown', () => {
+    muteBtn.x = 560;
+    muteBtn.y = y - 15;
+    muteBtn.eventMode = 'static';
+    muteBtn.cursor = 'pointer';
+    muteBtn.on('pointerdown', () => {
       audioModule.playSFX('sfx_click');
-      state.on = !state.on;
-      if (label === '背景音乐') {
+      if (type === 'bgm') {
         audioModule.toggleBGM();
       } else {
         audioModule.toggleSFX();
       }
-      renderToggle();
+      this.closeSettings();
+      Animator.delay(100).then(() => this.openSettings());
     });
+    panel.addChild(muteBtn);
 
-    container.addChild(toggle);
-    return container;
+    const trackBg = new PIXI.Graphics();
+    trackBg.beginFill(0x000000, 0.6);
+    trackBg.drawRoundedRect(130, y + 30, 380, 12, 6);
+    trackBg.endFill();
+    panel.addChild(trackBg);
+
+    const trackFill = new PIXI.Graphics();
+    trackFill.beginFill(GAME_CONFIG.COLORS.AMBER);
+    trackFill.drawRoundedRect(130, y + 30, 380 * volume, 12, 6);
+    trackFill.endFill();
+    panel.addChild(trackFill);
+
+    const handle = new PIXI.Graphics();
+    handle.beginFill(GAME_CONFIG.COLORS.GOLD);
+    handle.drawCircle(130 + 380 * volume, y + 36, 14);
+    handle.endFill();
+    handle.eventMode = 'static';
+    handle.cursor = 'pointer';
+    panel.addChild(handle);
+
+    let dragging = false;
+    handle.on('pointerdown', () => { dragging = true; });
+    handle.on('pointerup', () => { dragging = false; });
+    handle.on('pointerupoutside', () => { dragging = false; });
+    handle.on('pointermove', (e) => {
+      if (!dragging) return;
+      const parent = handle.parent as PIXI.Container;
+      const localPos = parent.toLocal(e.global);
+      let newVolume = (localPos.x - 130) / 380;
+      newVolume = Math.max(0, Math.min(1, newVolume));
+
+      trackFill.clear();
+      trackFill.beginFill(GAME_CONFIG.COLORS.AMBER);
+      trackFill.drawRoundedRect(130, y + 30, 380 * newVolume, 12, 6);
+      trackFill.endFill();
+      handle.x = 130 + 380 * newVolume - (130 + 380 * volume);
+
+      if (type === 'bgm') {
+        store.updateSettings({ bgmVolume: newVolume });
+        audioModule.setBGMVolume(newVolume);
+      } else {
+        store.updateSettings({ sfxVolume: newVolume });
+        audioModule.setSFXVolume(newVolume);
+      }
+    });
   }
 
   private closeSettings(): void {
