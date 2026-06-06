@@ -1,7 +1,8 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
+import { NIGHT_EVENTS } from './data/nightEvents';
 import { eventBus } from './EventBus';
 
 class Store {
@@ -11,6 +12,7 @@ class Store {
   private chapters: Chapter[];
   private mechanisms: Mechanism[];
   private recordings: AudioRecording[];
+  private nightEvents: NightEvent[];
 
   constructor() {
     const savedState = this.loadFromStorage();
@@ -19,6 +21,7 @@ class Store {
     this.chapters = JSON.parse(JSON.stringify(CHAPTERS));
     this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS));
     this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
+    this.nightEvents = JSON.parse(JSON.stringify(NIGHT_EVENTS));
 
     const defaultArchive: ArchiveState = {
       unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],
@@ -26,6 +29,15 @@ class Store {
       archivedClues: [],
       archiveEntries: [],
       completedChapters: []
+    };
+
+    const defaultNightPatrol: NightPatrolState = {
+      mode: 'day',
+      activeEvents: [],
+      resolvedEvents: [],
+      resetMechanisms: [],
+      patrolStartTime: 0,
+      totalEventsResolved: 0
     };
 
     this.state = savedState || {
@@ -40,11 +52,16 @@ class Store {
         bgmMuted: false,
         sfxMuted: false
       },
-      archive: defaultArchive
+      archive: defaultArchive,
+      nightPatrol: defaultNightPatrol
     };
 
     if (!this.state.archive) {
       this.state.archive = defaultArchive;
+    }
+
+    if (!this.state.nightPatrol) {
+      this.state.nightPatrol = defaultNightPatrol;
     }
 
     this.applyStateToData();
@@ -98,6 +115,21 @@ class Store {
       this.state.archive.playedRecordings.forEach(id => {
         const rec = this.recordings.find(r => r.id === id);
         if (rec) rec.played = true;
+      });
+    }
+
+    if (this.state.nightPatrol) {
+      this.state.nightPatrol.activeEvents.forEach(id => {
+        const event = this.nightEvents.find(e => e.id === id);
+        if (event) event.triggered = true;
+      });
+      this.state.nightPatrol.resolvedEvents.forEach(id => {
+        const event = this.nightEvents.find(e => e.id === id);
+        if (event) event.resolved = true;
+      });
+      this.state.nightPatrol.resetMechanisms.forEach(id => {
+        const mech = this.mechanisms.find(m => m.id === id);
+        if (mech) mech.solved = false;
       });
     }
   }
@@ -411,6 +443,7 @@ class Store {
     this.chapters = JSON.parse(JSON.stringify(CHAPTERS));
     this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS));
     this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
+    this.nightEvents = JSON.parse(JSON.stringify(NIGHT_EVENTS));
     this.state = {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -424,6 +457,14 @@ class Store {
         archivedClues: [],
         archiveEntries: [],
         completedChapters: []
+      },
+      nightPatrol: {
+        mode: 'day',
+        activeEvents: [],
+        resolvedEvents: [],
+        resetMechanisms: [],
+        patrolStartTime: 0,
+        totalEventsResolved: 0
       }
     };
     this.applyStateToData();
@@ -436,6 +477,136 @@ class Store {
       if (fragments[i].memoryOrder !== i + 1) return false;
     }
     return true;
+  }
+
+  getNightPatrolState(): NightPatrolState {
+    return { ...this.state.nightPatrol };
+  }
+
+  getExhibitionMode(): ExhibitionMode {
+    return this.state.nightPatrol.mode;
+  }
+
+  setExhibitionMode(mode: ExhibitionMode): boolean {
+    if (this.state.nightPatrol.mode === mode) return false;
+
+    this.state.nightPatrol.mode = mode;
+
+    if (mode === 'night') {
+      this.state.nightPatrol.patrolStartTime = Date.now();
+      this.state.nightPatrol.activeEvents = [];
+      this.state.nightPatrol.resolvedEvents = [];
+      this.resetNightEvents();
+      eventBus.emit('nightpatrol:start');
+    } else {
+      this.state.nightPatrol.activeEvents = [];
+      this.restoreMechanisms();
+      eventBus.emit('nightpatrol:end');
+    }
+
+    eventBus.emit('exhibition:mode-change', { mode });
+    this.saveToStorage();
+    return true;
+  }
+
+  private resetNightEvents(): void {
+    this.nightEvents.forEach(event => {
+      event.triggered = false;
+      event.resolved = false;
+    });
+  }
+
+  getNightEvents(): NightEvent[] {
+    return this.nightEvents.map(e => ({ ...e }));
+  }
+
+  getNightEventsByExhibition(exhibitionId: string): NightEvent[] {
+    return this.nightEvents.filter(e => e.exhibitionId === exhibitionId).map(e => ({ ...e }));
+  }
+
+  getActiveNightEvents(exhibitionId: string): NightEvent[] {
+    return this.nightEvents.filter(
+      e => e.exhibitionId === exhibitionId && e.triggered && !e.resolved
+    ).map(e => ({ ...e }));
+  }
+
+  getNightEventById(eventId: string): NightEvent | undefined {
+    return this.nightEvents.find(e => e.id === eventId);
+  }
+
+  triggerRandomNightEvent(exhibitionId: string): NightEvent | null {
+    if (this.state.nightPatrol.mode !== 'night') return null;
+
+    const availableEvents = this.nightEvents.filter(
+      e => e.exhibitionId === exhibitionId && !e.triggered && !e.resolved
+    );
+
+    if (availableEvents.length === 0) return null;
+
+    const randomIndex = Math.floor(Math.random() * availableEvents.length);
+    const event = availableEvents[randomIndex];
+
+    event.triggered = true;
+    this.state.nightPatrol.activeEvents.push(event.id);
+
+    eventBus.emit('nightpatrol:event-trigger', { eventId: event.id, event });
+    this.saveToStorage();
+
+    return { ...event };
+  }
+
+  resolveNightEvent(eventId: string): boolean {
+    const event = this.nightEvents.find(e => e.id === eventId);
+    if (!event || event.resolved) return false;
+
+    event.resolved = true;
+    this.state.nightPatrol.resolvedEvents.push(eventId);
+    this.state.nightPatrol.activeEvents = this.state.nightPatrol.activeEvents.filter(id => id !== eventId);
+    this.state.nightPatrol.totalEventsResolved++;
+
+    if (event.reward && event.reward.startsWith('clue_')) {
+      this.collectClue(event.reward);
+    }
+
+    eventBus.emit('nightpatrol:event-resolve', { eventId, event });
+    this.saveToStorage();
+
+    return true;
+  }
+
+  resetMechanism(mechanismId: string): boolean {
+    if (this.state.nightPatrol.mode !== 'night') return false;
+    if (!this.state.solvedMechanisms.includes(mechanismId)) return false;
+    if (this.state.nightPatrol.resetMechanisms.includes(mechanismId)) return false;
+
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech) return false;
+
+    mech.solved = false;
+    this.state.solvedMechanisms = this.state.solvedMechanisms.filter(id => id !== mechanismId);
+    this.state.nightPatrol.resetMechanisms.push(mechanismId);
+
+    eventBus.emit('nightpatrol:mechanism-reset', { mechanismId });
+    this.saveToStorage();
+
+    return true;
+  }
+
+  private restoreMechanisms(): void {
+    this.state.nightPatrol.resetMechanisms.forEach(mechanismId => {
+      const mech = this.mechanisms.find(m => m.id === mechanismId);
+      if (mech) {
+        mech.solved = true;
+        if (!this.state.solvedMechanisms.includes(mechanismId)) {
+          this.state.solvedMechanisms.push(mechanismId);
+        }
+      }
+    });
+    this.state.nightPatrol.resetMechanisms = [];
+  }
+
+  getTotalEventsResolved(): number {
+    return this.state.nightPatrol.totalEventsResolved;
   }
 }
 

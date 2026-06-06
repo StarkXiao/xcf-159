@@ -96,6 +96,31 @@ export interface ArchiveState {
   completedChapters: string[];
 }
 
+export type ExhibitionMode = 'day' | 'night';
+
+export interface NightEvent {
+  id: string;
+  exhibitionId: string;
+  name: string;
+  description: string;
+  type: 'anomaly' | 'sound' | 'figure' | 'whisper';
+  hotspot: { x: number; y: number; width: number; height: number };
+  triggered: boolean;
+  resolved: boolean;
+  reward?: string;
+  icon: string;
+  sfx: string;
+}
+
+export interface NightPatrolState {
+  mode: ExhibitionMode;
+  activeEvents: string[];
+  resolvedEvents: string[];
+  resetMechanisms: string[];
+  patrolStartTime: number;
+  totalEventsResolved: number;
+}
+
 export interface GameState {
   currentChapter: string;
   currentExhibition: string;
@@ -104,4 +129,5 @@ export interface GameState {
   unlockedExhibitions: string[];
   settings: GameSettings;
   archive: ArchiveState;
+  nightPatrol: NightPatrolState;
 }

@@ -100,13 +100,41 @@ export class AudioModule {
     const frequency = name === 'bgm_main' ? 220 :
                       name === 'bgm_mystery' ? 180 :
                       name === 'bgm_explore' ? 200 :
+                      name === 'bgm_night' ? 110 :
                       name === 'sfx_click' ? 800 :
                       name === 'sfx_collect' ? 600 :
                       name === 'sfx_success' ? 523 :
                       name === 'sfx_error' ? 200 :
-                      name === 'sfx_unlock' ? 440 : 440;
+                      name === 'sfx_unlock' ? 440 :
+                      name === 'sfx_night_start' ? 150 :
+                      name === 'sfx_day_start' ? 660 :
+                      name === 'sfx_event_resolve' ? 587 :
+                      name === 'sfx_mechanism_reset' ? 250 :
+                      name === 'sfx_footsteps' ? 120 :
+                      name === 'sfx_whisper' ? 180 :
+                      name === 'sfx_glow' ? 784 :
+                      name === 'sfx_musicbox' ? 659 :
+                      name === 'sfx_pages' ? 900 :
+                      name === 'sfx_float' ? 523 :
+                      name === 'sfx_breath' ? 200 :
+                      name === 'sfx_ticktock' ? 330 :
+                      name === 'sfx_amber' ? 440 : 440;
 
-    const duration = loop ? 8 : 0.3;
+    const duration = name === 'bgm_night' ? 12 :
+                     name === 'sfx_footsteps' ? 0.6 :
+                     name === 'sfx_whisper' ? 1.2 :
+                     name === 'sfx_glow' ? 0.8 :
+                     name === 'sfx_musicbox' ? 2.0 :
+                     name === 'sfx_pages' ? 0.5 :
+                     name === 'sfx_float' ? 0.8 :
+                     name === 'sfx_breath' ? 1.5 :
+                     name === 'sfx_ticktock' ? 0.4 :
+                     name === 'sfx_amber' ? 1.5 :
+                     name === 'sfx_night_start' ? 1.5 :
+                     name === 'sfx_day_start' ? 1.0 :
+                     name === 'sfx_event_resolve' ? 0.8 :
+                     name === 'sfx_mechanism_reset' ? 0.8 :
+                     loop ? 8 : 0.3;
 
     return new Howl({
       src: [this.generateTone(frequency, duration, loop)],
@@ -132,6 +160,17 @@ export class AudioModule {
 
     const wav = this.bufferToWav(buffer);
     return 'data:audio/wav;base64,' + btoa(wav);
+  }
+
+  playNightEventSFX(eventType: string): void {
+    const sfxMap: Record<string, string> = {
+      anomaly: 'sfx_glow',
+      sound: 'sfx_whisper',
+      figure: 'sfx_footsteps',
+      whisper: 'sfx_breath'
+    };
+    const sfxName = sfxMap[eventType] || 'sfx_click';
+    this.playSFX(sfxName);
   }
 
   private bufferToWav(buffer: AudioBuffer): string {

@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { Exhibition, Hotspot } from '../game/types';
+import { Exhibition, Hotspot, ExhibitionMode } from '../game/types';
 import { store } from '../game/Store';
 import { eventBus } from '../game/EventBus';
 import { GAME_CONFIG } from '../game/config';
@@ -10,10 +10,12 @@ export class ExhibitionModule {
   private container: PIXI.Container;
   private hotspots: Map<string, PIXI.Graphics> = new Map();
   private hotspotLabels: Map<string, PIXI.Text> = new Map();
+  private resetHotspots: Map<string, PIXI.Graphics> = new Map();
   private currentExhibition: Exhibition | null = null;
   private background: PIXI.Graphics | null = null;
   private transitionOverlay: PIXI.Graphics;
   private animations: (() => void)[] = [];
+  private currentMode: ExhibitionMode = 'day';
 
   constructor(container: PIXI.Container) {
     this.container = container;
@@ -26,11 +28,33 @@ export class ExhibitionModule {
     this.transitionOverlay.visible = false;
     this.container.addChild(this.transitionOverlay);
 
+    this.currentMode = store.getExhibitionMode();
+
     eventBus.on('exhibition:enter', this.handleExhibitionEnter.bind(this));
+    eventBus.on('exhibition:mode-change', this.handleModeChange.bind(this));
+    eventBus.on('nightpatrol:mechanism-reset', this.handleMechanismReset.bind(this));
   }
 
   private handleExhibitionEnter(data: { exhibitionId: string }): void {
     this.loadExhibition(data.exhibitionId);
+  }
+
+  private handleModeChange(data: { mode: ExhibitionMode }): void {
+    this.currentMode = data.mode;
+    if (this.currentExhibition) {
+      this.renderExhibition(this.currentExhibition);
+    }
+  }
+
+  private handleMechanismReset(data: { mechanismId: string }): void {
+    if (this.currentExhibition) {
+      const hotspot = this.currentExhibition.hotspots.find(
+        h => h.type === 'mechanism' && h.targetId === data.mechanismId
+      );
+      if (hotspot) {
+        this.createHotspot(hotspot);
+      }
+    }
   }
 
   loadExhibition(exhibitionId: string, withTransition: boolean = true): void {
@@ -201,7 +225,14 @@ export class ExhibitionModule {
     const isSolved = hotspot.type === 'mechanism' &&
       store.getState().solvedMechanisms.includes(hotspot.targetId);
 
-    if (isCollected || isSolved) return;
+    if (isCollected) return;
+
+    if (isSolved) {
+      if (this.currentMode === 'night' && hotspot.type === 'mechanism') {
+        this.createResetHotspot(hotspot);
+      }
+      return;
+    }
 
     const hotspotGraphics = new PIXI.Graphics();
     const color = hotspot.type === 'clue' ? GAME_CONFIG.COLORS.AMBER :
@@ -275,6 +306,119 @@ export class ExhibitionModule {
     this.container.addChild(hotspotGraphics);
   }
 
+  private createResetHotspot(hotspot: Hotspot): void {
+    if (this.resetHotspots.has(hotspot.id)) return;
+
+    const resetGraphics = new PIXI.Graphics();
+    const color = GAME_CONFIG.COLORS.WARM_ORANGE;
+
+    resetGraphics.lineStyle(3, color, 0.9);
+    resetGraphics.beginFill(color, 0.2);
+    resetGraphics.drawRoundedRect(0, 0, hotspot.width, hotspot.height, 12);
+    resetGraphics.endFill();
+
+    resetGraphics.beginFill(color, 0.5);
+    resetGraphics.drawCircle(hotspot.width / 2, hotspot.height / 2, 18);
+    resetGraphics.endFill();
+
+    const iconText = new PIXI.Text('🔄', {
+      fontSize: 28,
+      align: 'center'
+    });
+    iconText.anchor.set(0.5);
+    iconText.x = hotspot.width / 2;
+    iconText.y = hotspot.height / 2;
+    resetGraphics.addChild(iconText);
+
+    resetGraphics.x = hotspot.x;
+    resetGraphics.y = hotspot.y;
+    resetGraphics.eventMode = 'static';
+    resetGraphics.cursor = 'pointer';
+
+    const hintLabel = new PIXI.Text('机关重置', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 20,
+      fill: GAME_CONFIG.COLORS.WARM_ORANGE,
+      align: 'center',
+      stroke: 0x000000,
+      strokeThickness: 3
+    });
+    hintLabel.anchor.set(0.5, 0);
+    hintLabel.x = hotspot.x + hotspot.width / 2;
+    hintLabel.y = hotspot.y + hotspot.height + 10;
+    hintLabel.alpha = 0;
+    this.container.addChild(hintLabel);
+
+    const pulseAnimation = () => {
+      if (!this.isActive || !this.resetHotspots.has(hotspot.id)) return;
+      const scale = 1 + Math.sin(Date.now() / 250) * 0.1;
+      resetGraphics.scale.set(scale);
+      requestAnimationFrame(pulseAnimation);
+    };
+    pulseAnimation();
+
+    resetGraphics.on('pointerover', () => {
+      hintLabel.alpha = 1;
+      Animator.tween(resetGraphics.scale, { x: 1.2, y: 1.2 }, 150);
+      audioModule.playSFX('sfx_click');
+    });
+
+    resetGraphics.on('pointerout', () => {
+      hintLabel.alpha = 0;
+      Animator.tween(resetGraphics.scale, { x: 1, y: 1 }, 150);
+    });
+
+    resetGraphics.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      if (confirm('确定要重置这个机关吗？重置后需要重新解开。')) {
+        store.resetMechanism(hotspot.targetId);
+        this.removeResetHotspot(hotspot.id);
+      }
+    });
+
+    this.resetHotspots.set(hotspot.id, resetGraphics);
+    this.hotspotLabels.set('reset_' + hotspot.id, hintLabel);
+    this.container.addChild(resetGraphics);
+
+    Animator.animate(
+      400,
+      (progress) => {
+        resetGraphics.alpha = progress;
+        resetGraphics.scale.set(0.5 + progress * 0.5);
+      },
+      undefined,
+      Animator.easeOutBack
+    );
+  }
+
+  private removeResetHotspot(hotspotId: string): void {
+    const hotspot = this.resetHotspots.get(hotspotId);
+    const label = this.hotspotLabels.get('reset_' + hotspotId);
+
+    if (hotspot) {
+      Animator.animate(
+        300,
+        (progress) => {
+          hotspot.alpha = 1 - progress;
+          hotspot.scale.set(1 + progress);
+        },
+        () => {
+          if (hotspot.parent) {
+            hotspot.parent.removeChild(hotspot);
+          }
+          hotspot.destroy();
+          this.resetHotspots.delete(hotspotId);
+        }
+      );
+    }
+
+    if (label) {
+      this.container.removeChild(label);
+      label.destroy();
+      this.hotspotLabels.delete('reset_' + hotspotId);
+    }
+  }
+
   private handleHotspotClick(hotspot: Hotspot): void {
     audioModule.playSFX('sfx_click');
 
@@ -335,6 +479,12 @@ export class ExhibitionModule {
     });
     this.hotspots.clear();
 
+    this.resetHotspots.forEach(h => {
+      this.container.removeChild(h);
+      h.destroy();
+    });
+    this.resetHotspots.clear();
+
     this.hotspotLabels.forEach(l => {
       this.container.removeChild(l);
       l.destroy();
@@ -363,6 +513,8 @@ export class ExhibitionModule {
   destroy(): void {
     this.clearExhibition();
     eventBus.off('exhibition:enter', this.handleExhibitionEnter.bind(this));
+    eventBus.off('exhibition:mode-change', this.handleModeChange.bind(this));
+    eventBus.off('nightpatrol:mechanism-reset', this.handleMechanismReset.bind(this));
   }
 
   get isActive(): boolean {
