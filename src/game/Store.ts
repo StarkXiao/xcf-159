@@ -69,6 +69,7 @@ class Store {
       activeQuests: [],
       completedQuests: [],
       readyQuests: [],
+      deliveringQuests: [],
       questProgress: {},
       chapterEvaluations: [],
       totalScore: 0,
@@ -217,6 +218,10 @@ class Store {
         const quest = this.visitorQuests.find(q => q.id === id);
         if (quest) quest.status = 'ready';
       });
+      this.state.visitorQuests.deliveringQuests.forEach(id => {
+        const quest = this.visitorQuests.find(q => q.id === id);
+        if (quest) quest.status = 'delivering';
+      });
       this.state.visitorQuests.completedQuests.forEach(id => {
         const quest = this.visitorQuests.find(q => q.id === id);
         if (quest) quest.status = 'completed';
@@ -296,6 +301,8 @@ class Store {
 
     this.checkAndUnlockRecordings(clueId);
 
+    this.updateQuestProgressOnClueCollect(clueId);
+
     const currentChapter = this.getCurrentChapter();
     if (currentChapter) {
       const allCollected = currentChapter.requiredClues.every(id =>
@@ -306,8 +313,6 @@ class Store {
         eventBus.emit('chapter:complete', { chapterId: currentChapter.id });
       }
     }
-
-    this.updateQuestProgressOnClueCollect(clueId);
 
     eventBus.emit('clue:collect', { clueId });
     this.saveToStorage();
@@ -592,6 +597,7 @@ class Store {
         activeQuests: [],
         completedQuests: [],
         readyQuests: [],
+        deliveringQuests: [],
         questProgress: {},
         chapterEvaluations: [],
         totalScore: 0,
@@ -887,6 +893,8 @@ class Store {
       this.updateLinkedMechanismProgress(mech.id);
     });
 
+    this.updateQuestProgressOnClueCollect(clueId);
+
     const currentChapter = this.getCurrentChapter();
     if (currentChapter) {
       const allCollected = currentChapter.requiredClues.every(id =>
@@ -1078,7 +1086,7 @@ class Store {
 
   getActiveQuests(): VisitorQuest[] {
     return this.visitorQuests.filter(q =>
-      q.status === 'accepted' || q.status === 'ready'
+      q.status === 'accepted' || q.status === 'ready' || q.status === 'delivering'
     ).map(q => ({ ...q }));
   }
 
@@ -1217,21 +1225,33 @@ class Store {
     return false;
   }
 
-  deliverQuest(questId: string): { success: boolean; story: string } {
+  deliverQuest(questId: string): { success: boolean; story: string; alreadyDelivered: boolean } {
     const quest = this.visitorQuests.find(q => q.id === questId);
-    if (!quest) return { success: false, story: '' };
-    if (quest.status !== 'ready') return { success: false, story: '' };
+    if (!quest) return { success: false, story: '', alreadyDelivered: false };
+    if (quest.status === 'delivering') return { success: true, story: quest.storyDeliver, alreadyDelivered: true };
+    if (quest.status !== 'ready') return { success: false, story: '', alreadyDelivered: false };
 
-    return { success: true, story: quest.storyDeliver };
+    quest.status = 'delivering';
+    this.state.visitorQuests.readyQuests = this.state.visitorQuests.readyQuests.filter(id => id !== questId);
+    this.state.visitorQuests.deliveringQuests.push(questId);
+
+    const historyEntry = this.state.visitorQuests.questHistory.find(h => h.questId === questId);
+    if (historyEntry) {
+      historyEntry.deliveredAt = Date.now();
+      historyEntry.itemsDelivered = quest.requiredItems.map(item => ({ ...item }));
+    }
+
+    this.saveToStorage();
+    return { success: true, story: quest.storyDeliver, alreadyDelivered: false };
   }
 
   completeQuest(questId: string): boolean {
     const quest = this.visitorQuests.find(q => q.id === questId);
     if (!quest) return false;
-    if (quest.status !== 'ready') return false;
+    if (quest.status !== 'delivering') return false;
 
     quest.status = 'completed';
-    this.state.visitorQuests.readyQuests = this.state.visitorQuests.readyQuests.filter(id => id !== questId);
+    this.state.visitorQuests.deliveringQuests = this.state.visitorQuests.deliveringQuests.filter(id => id !== questId);
     this.state.visitorQuests.completedQuests.push(questId);
 
     let scoreEarned = 0;
@@ -1276,7 +1296,7 @@ class Store {
   canDeliverQuest(questId: string): boolean {
     const quest = this.visitorQuests.find(q => q.id === questId);
     if (!quest) return false;
-    return quest.status === 'ready';
+    return quest.status === 'ready' || quest.status === 'delivering';
   }
 
   evaluateChapter(chapterId: string): ChapterEvaluation | null {

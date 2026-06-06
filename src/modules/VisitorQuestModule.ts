@@ -78,7 +78,8 @@ export class VisitorQuestModule {
     const currentChapter = store.getCurrentChapter()?.id || '';
     const availableCount = store.getAvailableQuests(currentChapter).length;
     const readyCount = store.getActiveQuests().filter(q => q.status === 'ready').length;
-    const totalCount = availableCount + readyCount;
+    const deliveringCount = store.getActiveQuests().filter(q => q.status === 'delivering').length;
+    const totalCount = availableCount + readyCount + deliveringCount;
 
     const badge = (this.hudContainer as any).questBadge as PIXI.Graphics;
     const badgeText = (this.hudContainer as any).badgeText as PIXI.Text;
@@ -483,7 +484,7 @@ export class VisitorQuestModule {
     description.y = 55;
     container.addChild(description);
 
-    if (quest.status === 'accepted' || quest.status === 'ready') {
+    if (quest.status === 'accepted' || quest.status === 'ready' || quest.status === 'delivering') {
       const progressArea = this.createQuestProgress(quest);
       progressArea.y = 95;
       container.addChild(progressArea);
@@ -515,18 +516,19 @@ export class VisitorQuestModule {
 
   private createQuestProgress(quest: VisitorQuest): PIXI.Container {
     const container = new PIXI.Container();
+    const isDelivered = quest.status === 'delivering';
 
     const progressBg = new PIXI.Graphics();
     progressBg.beginFill(0x000000, 0.6);
-    progressBg.lineStyle(2, GAME_CONFIG.COLORS.BRONZE, 0.5);
+    progressBg.lineStyle(2, isDelivered ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.BRONZE, 0.5);
     progressBg.drawRoundedRect(200, 0, 450, 80, 8);
     progressBg.endFill();
     container.addChild(progressBg);
 
-    const progressLabel = new PIXI.Text('收集进度:', {
+    const progressLabel = new PIXI.Text(isDelivered ? '已交付道具:' : '收集进度:', {
       fontFamily: GAME_CONFIG.FONTS.BODY,
       fontSize: 14,
-      fill: GAME_CONFIG.COLORS.CREAM
+      fill: isDelivered ? GAME_CONFIG.COLORS.GREEN : GAME_CONFIG.COLORS.CREAM
     });
     progressLabel.x = 215;
     progressLabel.y = 8;
@@ -534,7 +536,7 @@ export class VisitorQuestModule {
 
     let itemX = 215;
     quest.requiredItems.forEach(item => {
-      const progress = store.getQuestItemProgress(quest.id, item.id);
+      const progress = isDelivered ? item.quantity : store.getQuestItemProgress(quest.id, item.id);
       const isComplete = progress >= item.quantity;
 
       const itemIcon = new PIXI.Text(item.icon, { fontSize: 24 });
@@ -552,7 +554,7 @@ export class VisitorQuestModule {
       itemName.y = 62;
       container.addChild(itemName);
 
-      const itemCount = new PIXI.Text(`${progress}/${item.quantity}`, {
+      const itemCount = new PIXI.Text(isDelivered ? '✓已交付' : `${progress}/${item.quantity}`, {
         fontFamily: GAME_CONFIG.FONTS.BODY,
         fontSize: 12,
         fill: isComplete ? GAME_CONFIG.COLORS.GOLD : GAME_CONFIG.COLORS.CREAM
@@ -587,6 +589,10 @@ export class VisitorQuestModule {
         btnText = '交付道具';
         btnColor = GAME_CONFIG.COLORS.GOLD;
         break;
+      case 'delivering':
+        btnText = '确认完成';
+        btnColor = GAME_CONFIG.COLORS.GREEN;
+        break;
     }
 
     btn.beginFill(btnColor, 0.9);
@@ -611,7 +617,7 @@ export class VisitorQuestModule {
       audioModule.playSFX('sfx_click');
       if (quest.status === 'available') {
         this.handleAcceptQuest(quest.id);
-      } else if (quest.status === 'ready') {
+      } else if (quest.status === 'ready' || quest.status === 'delivering') {
         this.handleDeliverQuest(quest.id);
       }
     });
@@ -767,7 +773,7 @@ export class VisitorQuestModule {
 
     const result = store.deliverQuest(questId);
     if (result.success) {
-      this.showStoryDialog(result.story, () => {
+      if (result.alreadyDelivered) {
         this.showStoryDialog(quest.storyComplete, () => {
           const success = store.completeQuest(questId);
           if (success) {
@@ -776,7 +782,18 @@ export class VisitorQuestModule {
             this.updateBadge();
           }
         });
-      });
+      } else {
+        this.showStoryDialog(result.story, () => {
+          this.showStoryDialog(quest.storyComplete, () => {
+            const success = store.completeQuest(questId);
+            if (success) {
+              this.showQuestCompleteNotification(quest);
+              this.refreshContent();
+              this.updateBadge();
+            }
+          });
+        });
+      }
     }
   }
 

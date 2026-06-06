@@ -203,7 +203,7 @@ export interface VisitorQuest {
   storyAccept: string;
   storyDeliver: string;
   storyComplete: string;
-  status: 'locked' | 'available' | 'accepted' | 'ready' | 'completed';
+  status: 'locked' | 'available' | 'accepted' | 'ready' | 'delivering' | 'completed';
   unlockCondition?: {
     requiredClues?: string[];
     requiredCompletedQuests?: string[];
@@ -248,6 +248,7 @@ export interface VisitorQuestState {
   activeQuests: string[];
   completedQuests: string[];
   readyQuests: string[];
+  deliveringQuests: string[];
   questProgress: Record<string, Record<string, number>>;
   chapterEvaluations: ChapterEvaluation[];
   totalScore: number;
@@ -259,8 +260,10 @@ export interface QuestHistoryEntry {
   questId: string;
   chapterId: string;
   acceptedAt: number;
-  completedAt: number;
-  scoreEarned: number;
+  deliveredAt?: number;
+  completedAt?: number;
+  scoreEarned?: number;
+  itemsDelivered?: QuestItem[];
 }
 
 export interface GameState {
