@@ -9,7 +9,8 @@ export const CHAPTERS: Chapter[] = [
     exhibitions: ['exhibition_1', 'exhibition_2', 'exhibition_3'],
     requiredClues: ['clue_2', 'clue_3', 'clue_4'],
     storyText: '记忆碎片在你脑海中逐渐清晰——小女孩琥珀、她的家人、那些温暖的时光...',
-    completed: false
+    completed: false,
+    unlocked: true
   },
   {
     id: 'chapter_2',
@@ -18,7 +19,8 @@ export const CHAPTERS: Chapter[] = [
     exhibitions: ['exhibition_4', 'exhibition_5'],
     requiredClues: ['clue_7', 'clue_8', 'clue_9'],
     storyText: '爷爷的爱如同琥珀一般，历经岁月而不褪色。那些被封存的记忆，如今在你眼前一一展现...',
-    completed: false
+    completed: false,
+    unlocked: false
   },
   {
     id: 'chapter_3',
@@ -27,7 +29,8 @@ export const CHAPTERS: Chapter[] = [
     exhibitions: ['exhibition_6', 'exhibition_7'],
     requiredClues: ['clue_11', 'clue_12', 'clue_13', 'clue_14', 'clue_15'],
     storyText: '当最后一道工序完成，青铜鼎恢复了昔日的辉煌。你仿佛穿越千年，亲手触摸到了那段辉煌的历史。文物的修复，亦是记忆的修复...',
-    completed: false
+    completed: false,
+    unlocked: false
   },
   {
     id: 'chapter_4',
@@ -37,6 +40,7 @@ export const CHAPTERS: Chapter[] = [
     requiredClues: ['clue_h1', 'clue_h2', 'clue_h3', 'clue_a1', 'clue_a2', 'clue_a3', 'clue_shared_1', 'clue_shared_2'],
     storyText: '当历史与艺术交汇，真相终于浮出水面。原来青铜鼎与琥珀，有着千丝万缕的联系...',
     completed: false,
+    unlocked: false,
     isDualHall: true,
     historyExhibitions: ['exhibition_history_1', 'exhibition_history_2', 'exhibition_history_3'],
     artExhibitions: ['exhibition_art_1', 'exhibition_art_2', 'exhibition_art_3'],
@@ -54,6 +58,7 @@ export const CHAPTERS: Chapter[] = [
     requiredClues: ['clue_auth_1', 'clue_auth_2', 'clue_auth_3', 'clue_auth_4', 'clue_auth_final'],
     storyText: '当最后一件藏品的鉴定结果尘埃落定，你终于明白了爷爷的良苦用心。辨伪存真，不仅是文物工作者的天职，更是对历史的尊重，对文明的守护。爷爷用一生践行的信念，现在交到了你的手中...',
     completed: false,
+    unlocked: false,
     isAuthenticity: true
   },
   {
@@ -64,6 +69,7 @@ export const CHAPTERS: Chapter[] = [
     requiredClues: ['clue_cor_1', 'clue_cor_2', 'clue_cor_3', 'clue_cor_4', 'clue_cor_5', 'clue_cor_6', 'clue_cor_7', 'clue_cor_8'],
     storyText: '当所有记忆碎片归位，当所有选择尘埃落定，你终于明白了琥珀记忆馆存在的真正意义。记忆不会因为时间的流逝而褪色，选择不会因为重来而失去价值。每一段记忆都值得被珍藏，每一次选择都是成长的印记。',
     completed: false,
+    unlocked: false,
     isMemoryCorridor: true,
     memoryPhases: [
       {
@@ -494,7 +500,7 @@ export const MECHANISMS: Mechanism[] = [
     id: 'mech_auth_final',
     type: 'password',
     answer: '永恒',
-    reward: 'ending',
+    reward: 'start_memory_corridor',
     hint: '爷爷一生追求的答案...',
     solved: false,
     displayName: '爷爷的终极秘密'
@@ -514,7 +520,7 @@ export const MECHANISMS: Mechanism[] = [
   {
     id: 'mech_cor_memory_1',
     type: 'memory_sort',
-    answer: [1, 2],
+    answer: [2, 3],
     reward: 'unlock_corridor_phase_2',
     hint: '按照记忆的时间顺序排列碎片：追逐蝴蝶的午后、将蝴蝶制作成标本...',
     solved: false,
@@ -567,7 +573,7 @@ export const MECHANISMS: Mechanism[] = [
     id: 'mech_cor_ending',
     type: 'password',
     answer: '永恒',
-    reward: 'unlock_true_ending',
+    reward: 'complete_memory_corridor',
     hint: '当所有记忆归位，当所有选择尘埃落定，答案就是...',
     solved: false,
     displayName: '结局之门'

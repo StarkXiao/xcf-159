@@ -135,6 +135,7 @@ export interface Chapter {
   requiredClues: string[];
   storyText: string;
   completed: boolean;
+  unlocked: boolean;
   isDualHall?: boolean;
   historyExhibitions?: string[];
   artExhibitions?: string[];
@@ -439,4 +440,63 @@ export interface GameState {
   readingRoom: ReadingRoomState;
   authenticity: AuthenticityState;
   memoryCorridor: MemoryCorridorState;
+}
+
+export interface MemorySortData {
+  phase: number;
+  fragments: Clue[];
+  collectedFragments: Clue[];
+  requiredCount: number;
+  collectedCount: number;
+}
+
+export interface PasswordData {
+  hint: string;
+  displayName: string;
+}
+
+export interface AuthenticityData {
+  relicIds: string[];
+}
+
+export type MechanismInteractionType =
+  | 'unknown'
+  | 'already_solved'
+  | 'password'
+  | 'sequence'
+  | 'restoration'
+  | 'linked'
+  | 'authenticity'
+  | 'memory_sort'
+  | 'branch_choice';
+
+export interface MechanismInteractionResult {
+  success: boolean;
+  type: MechanismInteractionType;
+  reason?: string;
+  mechanism?: Mechanism;
+  memorySortData?: MemorySortData;
+  passwordData?: PasswordData;
+  authenticityData?: AuthenticityData;
+  branch?: BranchChoice;
+  selectedChoice?: BranchChoice['choices'][number];
+}
+
+export interface MemorySortSubmitResult {
+  success: boolean;
+  correct?: boolean;
+  reason?: string;
+  reward?: string;
+  message?: string;
+  progress?: number;
+}
+
+export interface BranchChoiceSubmitResult {
+  success: boolean;
+  reason?: string;
+  consequence?: string;
+  endingId?: string;
+  unlocksClue?: string;
+  unlocksExhibition?: string;
+  reward?: string;
 }

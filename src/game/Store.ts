@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -460,8 +460,13 @@ class Store {
       eventBus.emit('chapter:enter', { chapterId: 'chapter_5' });
     }
 
-    if (mech.reward === 'ending') {
-      this.unlockFinalRecording();
+    if (mech.reward === 'start_memory_corridor') {
+      this.unlockChapter('chapter_6');
+      this.state.currentChapter = 'chapter_6';
+      this.unlockExhibition('exhibition_corridor_entrance');
+      this.startMemoryCorridor();
+      this.unlockChapterRecordings('chapter_6');
+      eventBus.emit('chapter:enter', { chapterId: 'chapter_6' });
     }
 
     if (mech.reward === 'unlock_corridor_phase_2') {
@@ -485,8 +490,27 @@ class Store {
       this.unlockExhibition('exhibition_corridor_ending');
     }
 
-    if (mech.reward === 'unlock_true_ending') {
-      this.achieveEnding('ending_true');
+    if (mech.reward === 'complete_memory_corridor') {
+      this.unlockExhibition('exhibition_corridor_ending');
+      const currentEndingId = this.state.memoryCorridor.currentEnding;
+      if (!currentEndingId) {
+        const finalEnding = this.determineEnding();
+        if (finalEnding && !this.state.memoryCorridor.achievedEndings.includes(finalEnding.id)) {
+          this.achieveEnding(finalEnding.id);
+        }
+      } else {
+        const currentEnding = this.getEndingById(currentEndingId);
+        if (currentEnding && !currentEnding.achieved) {
+          this.achieveEnding(currentEndingId);
+        }
+      }
+      this.endings.forEach(ending => {
+        if (this.checkEndingUnlockConditions(ending.id)) {
+          this.unlockEnding(ending.id);
+        }
+      });
+      this.addTimelineEventIfNotExists('timeline_cor_complete');
+      eventBus.emit('memorycorridor:complete');
     }
 
     eventBus.emit('mechanism:solve', { mechanismId, reward: mech.reward });
@@ -1608,6 +1632,20 @@ class Store {
     return this.characters.filter(c => c.chapterId === chapterId).map(c => ({ ...c }));
   }
 
+  unlockChapter(chapterId: string): boolean {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter) return false;
+    if (chapter.unlocked) return false;
+
+    chapter.unlocked = true;
+
+    this.addTimelineEventIfNotExists(`timeline_chapter_${chapterId}_unlock`);
+
+    eventBus.emit('chapter:unlock', { chapterId, chapter });
+    this.saveToStorage();
+    return true;
+  }
+
   unlockCharacter(characterId: string): boolean {
     if (this.state.readingRoom.unlockedCharacters.includes(characterId)) return false;
 
@@ -1659,6 +1697,15 @@ class Store {
     eventBus.emit('readingroom:event-unlock', { eventId });
     this.saveToStorage();
     return true;
+  }
+
+  addTimelineEventIfNotExists(eventId: string): boolean {
+    if (this.state.readingRoom.unlockedEvents.includes(eventId)) return false;
+
+    const event = this.timelineEvents.find(e => e.id === eventId);
+    if (!event) return false;
+
+    return this.unlockTimelineEvent(eventId);
   }
 
   markEventAsViewed(eventId: string): boolean {
@@ -2251,8 +2298,18 @@ class Store {
     if (fragments.length !== fragmentIds.length) return false;
 
     for (let i = 0; i < fragments.length; i++) {
-      if (!fragments[i].memoryOrder || fragments[i].memoryOrder !== i + 1) {
+      const current = fragments[i];
+      if (current.memoryOrder === undefined || current.memoryOrder === null) {
         return false;
+      }
+      if (i > 0) {
+        const prev = fragments[i - 1];
+        if (prev.memoryOrder === undefined || prev.memoryOrder === null) {
+          return false;
+        }
+        if (current.memoryOrder <= prev.memoryOrder) {
+          return false;
+        }
       }
     }
 
@@ -2274,8 +2331,19 @@ class Store {
     if (sortedFragments.length !== expectedFragmentIds.length) return false;
 
     for (let i = 0; i < sortedFragments.length; i++) {
-      if (sortedFragments[i].id !== expectedFragmentIds[i]) return false;
-      if (sortedFragments[i].memoryOrder !== i + 1) return false;
+      const current = sortedFragments[i];
+      if (current.memoryOrder === undefined || current.memoryOrder === null) {
+        return false;
+      }
+      if (i > 0) {
+        const prev = sortedFragments[i - 1];
+        if (prev.memoryOrder === undefined || prev.memoryOrder === null) {
+          return false;
+        }
+        if (current.memoryOrder <= prev.memoryOrder) {
+          return false;
+        }
+      }
     }
 
     const progress = Math.round((sortedFragments.length / expectedFragmentIds.length) * 100);
@@ -2368,6 +2436,202 @@ class Store {
     });
 
     this.saveToStorage();
+  }
+
+  interactWithMechanism(mechanismId: string): MechanismInteractionResult {
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech) {
+      return { success: false, type: 'unknown', reason: '机关不存在' };
+    }
+
+    if (mech.solved) {
+      return { success: false, type: 'already_solved', reason: '机关已解开', mechanism: mech };
+    }
+
+    if (mech.type === 'memory_sort') {
+      const phaseInfo = mech.memoryCorridorPhase;
+      const fragmentIds = phaseInfo?.fragmentIds || [];
+      const fragments = this.clues.filter(c => fragmentIds.includes(c.id));
+      const collectedFragments = fragments.filter(f => this.state.collectedClues.includes(f.id));
+
+      if (collectedFragments.length < fragments.length) {
+        return {
+          success: false,
+          type: 'memory_sort',
+          reason: '碎片不足',
+          mechanism: mech,
+          memorySortData: {
+            phase: phaseInfo?.phase || 1,
+            fragments,
+            collectedFragments,
+            requiredCount: fragments.length,
+            collectedCount: collectedFragments.length
+          }
+        };
+      }
+
+      return {
+        success: true,
+        type: 'memory_sort',
+        mechanism: mech,
+        memorySortData: {
+          phase: phaseInfo?.phase || 1,
+          fragments,
+          collectedFragments,
+          requiredCount: fragments.length,
+          collectedCount: collectedFragments.length
+        }
+      };
+    }
+
+    if (mech.type === 'branch_choice') {
+      const branchChoiceId = mech.branchChoiceId;
+      if (!branchChoiceId) {
+        return { success: false, type: 'branch_choice', reason: '分支配置错误', mechanism: mech };
+      }
+
+      const branch = this.branchChoices.find(b => b.id === branchChoiceId);
+      if (!branch) {
+        return { success: false, type: 'branch_choice', reason: '分支不存在', mechanism: mech };
+      }
+
+      if (!branch.unlocked) {
+        return { success: false, type: 'branch_choice', reason: '分支未解锁', mechanism: mech, branch };
+      }
+
+      if (branch.selectedChoiceId) {
+        return {
+          success: false,
+          type: 'branch_choice',
+          reason: '已做出选择',
+          mechanism: mech,
+          branch,
+          selectedChoice: branch.choices.find(c => c.id === branch.selectedChoiceId)
+        };
+      }
+
+      return {
+        success: true,
+        type: 'branch_choice',
+        mechanism: mech,
+        branch
+      };
+    }
+
+    if (mech.type === 'password') {
+      return {
+        success: true,
+        type: 'password',
+        mechanism: mech,
+        passwordData: {
+          hint: mech.hint,
+          displayName: mech.displayName
+        }
+      };
+    }
+
+    if (mech.type === 'sequence') {
+      return {
+        success: true,
+        type: 'sequence',
+        mechanism: mech
+      };
+    }
+
+    if (mech.type === 'authenticity') {
+      return {
+        success: true,
+        type: 'authenticity',
+        mechanism: mech,
+        authenticityData: {
+          relicIds: mech.authenticityRelicIds || []
+        }
+      };
+    }
+
+    if (mech.type === 'restoration') {
+      return {
+        success: true,
+        type: 'restoration',
+        mechanism: mech
+      };
+    }
+
+    if (mech.type === 'linked') {
+      return {
+        success: true,
+        type: 'linked',
+        mechanism: mech
+      };
+    }
+
+    return { success: false, type: 'unknown', reason: '未知机关类型', mechanism: mech };
+  }
+
+  submitMemorySort(mechanismId: string, sortedFragmentIds: string[]): MemorySortSubmitResult {
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech || mech.type !== 'memory_sort') {
+      return { success: false, reason: '无效的排序机关' };
+    }
+
+    if (mech.solved) {
+      return { success: false, reason: '机关已解开' };
+    }
+
+    const isCorrect = this.checkMechanismMemorySort(mechanismId, sortedFragmentIds);
+
+    if (isCorrect) {
+      const solved = this.solveMechanism(mechanismId);
+      if (solved) {
+        return {
+          success: true,
+          correct: true,
+          reward: mech.reward,
+          message: '记忆碎片排序正确！'
+        };
+      }
+      return { success: false, reason: '解锁失败' };
+    }
+
+    const progress = this.getMemoryFragmentSortingProgress();
+    return {
+      success: true,
+      correct: false,
+      progress,
+      message: '顺序不正确，请重新排列'
+    };
+  }
+
+  submitBranchChoice(mechanismId: string, choiceId: string): BranchChoiceSubmitResult {
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech || mech.type !== 'branch_choice') {
+      return { success: false, reason: '无效的分支机关' };
+    }
+
+    if (mech.solved) {
+      return { success: false, reason: '机关已解开' };
+    }
+
+    const branchChoiceId = mech.branchChoiceId;
+    if (!branchChoiceId) {
+      return { success: false, reason: '机关配置错误' };
+    }
+
+    const result = this.makeChoice(branchChoiceId, choiceId);
+    if (!result.success) {
+      return { success: false, reason: result.consequence };
+    }
+
+    const solved = this.solveMechanism(mechanismId);
+
+    return {
+      success: true,
+      consequence: result.consequence,
+      endingId: result.endingId,
+      unlocksClue: result.unlocksClue,
+      unlocksExhibition: result.unlocksExhibition,
+      reward: solved ? mech.reward : undefined
+    };
   }
 }
 
