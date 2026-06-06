@@ -59,7 +59,14 @@ export class ExhibitionModule {
 
   loadExhibition(exhibitionId: string, withTransition: boolean = true): void {
     const exhibition = store.getExhibitionById(exhibitionId);
-    if (!exhibition || !exhibition.unlocked) return;
+    if (!exhibition || !exhibition.unlocked) {
+      if (exhibitionId === 'exhibition_6') {
+        this.showLockedHint('请先解开"修复室之门"的密码，才能进入文物修复室。');
+      } else if (exhibitionId === 'exhibition_7') {
+        this.showLockedHint('请先完成青铜鼎的修复工作，才能进入青铜珍品馆。');
+      }
+      return;
+    }
 
     if (withTransition) {
       this.transitionOverlay.visible = true;
@@ -519,6 +526,42 @@ export class ExhibitionModule {
         child.destroy();
       }
     }
+  }
+
+  private showLockedHint(text: string): void {
+    const hint = new PIXI.Text(text, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 22,
+      fill: GAME_CONFIG.COLORS.WARM_ORANGE,
+      align: 'center',
+      stroke: 0x000000,
+      strokeThickness: 4,
+      wordWrap: true,
+      wordWrapWidth: 500
+    });
+    hint.anchor.set(0.5);
+    hint.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    hint.y = GAME_CONFIG.DESIGN_HEIGHT / 2;
+    hint.alpha = 0;
+    this.container.addChild(hint);
+
+    audioModule.playSFX('sfx_error');
+
+    Animator.animate(
+      300,
+      (progress) => { hint.alpha = progress; hint.scale.set(0.8 + progress * 0.2); },
+      () => {
+        Animator.delay(2000).then(() => {
+          Animator.animate(300, (p) => { hint.alpha = 1 - p; hint.scale.set(1 - p * 0.2); }, () => {
+            if (hint.parent) {
+              hint.parent.removeChild(hint);
+              hint.destroy();
+            }
+          });
+        });
+      },
+      Animator.easeOutBack
+    );
   }
 
   update(_delta: number): void {

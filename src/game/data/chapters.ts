@@ -87,12 +87,12 @@ export const EXHIBITIONS: Exhibition[] = [
     id: 'exhibition_5',
     name: '回忆长廊',
     bgColor: GAME_CONFIG.COLORS.AMBER,
-    description: '一条金色的长廊，两侧的玻璃柜中封存着无数美好的记忆。琥珀色的光芒让你感到无比温暖。',
+    description: '一条金色的长廊，两侧的玻璃柜中封存着无数美好的记忆。琥珀色的光芒让你感到无比温暖。长廊尽头有一扇神秘的门...',
     unlocked: false,
     hotspots: [
       { id: 'hs_9', x: 200, y: 400, width: 120, height: 120, type: 'clue', targetId: 'clue_6', hint: '古老钥匙', activated: false },
       { id: 'hs_10', x: 450, y: 500, width: 120, height: 120, type: 'clue', targetId: 'clue_10', hint: '古籍', activated: false },
-      { id: 'hs_final', x: 350, y: 800, width: 150, height: 150, type: 'mechanism', targetId: 'mech_3', hint: '最终之门', activated: false },
+      { id: 'hs_final', x: 350, y: 800, width: 150, height: 150, type: 'mechanism', targetId: 'mech_3', hint: '修复室之门', activated: false },
       { id: 'hs_back_4', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_4', hint: '返回珍藏馆', activated: false },
       { id: 'hs_to_restoration', x: 600, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_6', hint: '前往修复室', activated: false }
     ]
@@ -149,10 +149,10 @@ export const MECHANISMS: Mechanism[] = [
     id: 'mech_3',
     type: 'password',
     answer: '315',
-    reward: 'ending',
+    reward: 'exhibition_6',
     hint: '怀表停止的时间...',
     solved: false,
-    displayName: '最终之门'
+    displayName: '修复室之门'
   },
   {
     id: 'mech_4',
