@@ -33,7 +33,7 @@ export const CHAPTERS: Chapter[] = [
     id: 'chapter_4',
     title: '第四章：双馆并行调查',
     description: '博物馆的最深处隐藏着两座神秘展馆——历史馆与艺术馆。你需要在两馆间交叉取证，共享线索，共同推进联动机关，揭开尘封千年的秘密。',
-    exhibitions: ['exhibition_history_1', 'exhibition_history_2', 'exhibition_history_3', 'exhibition_art_1', 'exhibition_art_2', 'exhibition_art_3'],
+    exhibitions: ['exhibition_history_1', 'exhibition_history_2', 'exhibition_history_3', 'exhibition_art_1', 'exhibition_art_2', 'exhibition_art_3', 'exhibition_auth_1'],
     requiredClues: ['clue_h1', 'clue_h2', 'clue_h3', 'clue_a1', 'clue_a2', 'clue_a3', 'clue_shared_1', 'clue_shared_2'],
     storyText: '当历史与艺术交汇，真相终于浮出水面。原来青铜鼎与琥珀，有着千丝万缕的联系...',
     completed: false,
@@ -199,6 +199,7 @@ export const EXHIBITIONS: Exhibition[] = [
     hotspots: [
       { id: 'hs_h3_1', x: 150, y: 400, width: 120, height: 120, type: 'clue', targetId: 'clue_shared_2', hint: '铸造图谱（需艺术馆线索）', activated: false },
       { id: 'hs_h3_link', x: 300, y: 600, width: 160, height: 160, type: 'mechanism', targetId: 'mech_linked_final', hint: '联动机关·千年之锁', activated: false },
+      { id: 'hs_h3_to_auth', x: 320, y: 900, width: 120, height: 150, type: 'exit', targetId: 'exhibition_auth_1', hint: '前往文物鉴定室', activated: false },
       { id: 'hs_h3_to_art', x: 50, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_art_3', hint: '前往艺术馆', activated: false },
       { id: 'hs_h3_back', x: 600, y: 900, width: 120, height: 100, type: 'exit', targetId: 'exhibition_history_2', hint: '返回礼乐厅', activated: false }
     ]
@@ -362,7 +363,7 @@ export const MECHANISMS: Mechanism[] = [
     id: 'mech_linked_final',
     type: 'linked',
     answer: '永恒',
-    reward: 'chapter_4_complete',
+    reward: 'unlock_chapter_5',
     hint: '历史与艺术的交汇处，是爷爷想要告诉你的答案...',
     solved: false,
     displayName: '联动机关·千年永恒锁',

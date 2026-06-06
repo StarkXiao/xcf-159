@@ -1114,12 +1114,16 @@ class Store {
       this.unlockDualHallPhase(3);
       this.unlockExhibition('exhibition_history_3');
       this.unlockExhibition('exhibition_art_3');
-    } else if (mech.reward === 'chapter_4_complete') {
+      this.unlockExhibition('exhibition_auth_1');
+    } else if (mech.reward === 'unlock_chapter_5') {
       const chapter = this.chapters.find(c => c.id === 'chapter_4');
       if (chapter) {
         chapter.completed = true;
         eventBus.emit('chapter:complete', { chapterId: 'chapter_4' });
       }
+      this.unlockExhibition('exhibition_auth_1');
+      this.state.currentChapter = 'chapter_5';
+      eventBus.emit('chapter:enter', { chapterId: 'chapter_5' });
     }
 
     eventBus.emit('dualhall:linked-mechanism-solve', {

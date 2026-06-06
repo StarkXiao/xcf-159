@@ -62,9 +62,9 @@ export class MechanismModule {
       Animator.delay(1000).then(() => {
         this.showPhaseUnlockAnimation('第三阶段解锁', '匠作坊与创作室已开放');
       });
-    } else if (data.reward === 'chapter_4_complete') {
+    } else if (data.reward === 'unlock_chapter_5') {
       Animator.delay(1500).then(() => {
-        eventBus.emit('game:complete');
+        this.showChapterUnlockAnimation('第五章：真伪鉴定', '文物鉴定室已开放\n四件珍贵藏品等待你的慧眼');
       });
     } else if (data.reward === 'unlock_auth_final') {
       Animator.delay(1500).then(() => {
