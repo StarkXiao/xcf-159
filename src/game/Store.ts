@@ -1,9 +1,10 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
 import { NIGHT_EVENTS } from './data/nightEvents';
 import { RELICS, RESTORATION_MATERIALS } from './data/restoration';
+import { VISITOR_QUESTS } from './data/visitorQuests';
 import { eventBus } from './EventBus';
 
 class Store {
@@ -16,6 +17,8 @@ class Store {
   private nightEvents: NightEvent[];
   private relics: Relic[];
   private restorationMaterials: RestorationMaterial[];
+  private visitorQuests: VisitorQuest[];
+  private chapterStartTime: number = Date.now();
 
   constructor() {
     const savedState = this.loadFromStorage();
@@ -27,6 +30,7 @@ class Store {
     this.nightEvents = JSON.parse(JSON.stringify(NIGHT_EVENTS));
     this.relics = JSON.parse(JSON.stringify(RELICS));
     this.restorationMaterials = JSON.parse(JSON.stringify(RESTORATION_MATERIALS));
+    this.visitorQuests = JSON.parse(JSON.stringify(VISITOR_QUESTS));
 
     const defaultArchive: ArchiveState = {
       unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],
@@ -61,6 +65,17 @@ class Store {
       currentInvestigationPhase: 1
     };
 
+    const defaultVisitorQuests: VisitorQuestState = {
+      activeQuests: [],
+      completedQuests: [],
+      readyQuests: [],
+      questProgress: {},
+      chapterEvaluations: [],
+      totalScore: 0,
+      currentChapterScore: 0,
+      questHistory: []
+    };
+
     this.state = savedState || {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -76,7 +91,8 @@ class Store {
       archive: defaultArchive,
       nightPatrol: defaultNightPatrol,
       restoration: defaultRestoration,
-      dualHall: defaultDualHall
+      dualHall: defaultDualHall,
+      visitorQuests: defaultVisitorQuests
     };
 
     if (!this.state.archive) {
@@ -93,6 +109,10 @@ class Store {
 
     if (!this.state.dualHall) {
       this.state.dualHall = defaultDualHall;
+    }
+
+    if (!this.state.visitorQuests) {
+      this.state.visitorQuests = defaultVisitorQuests;
     }
 
     this.applyStateToData();
@@ -187,6 +207,33 @@ class Store {
         }
       });
     }
+
+    if (this.state.visitorQuests) {
+      this.state.visitorQuests.activeQuests.forEach(id => {
+        const quest = this.visitorQuests.find(q => q.id === id);
+        if (quest) quest.status = 'accepted';
+      });
+      this.state.visitorQuests.readyQuests.forEach(id => {
+        const quest = this.visitorQuests.find(q => q.id === id);
+        if (quest) quest.status = 'ready';
+      });
+      this.state.visitorQuests.completedQuests.forEach(id => {
+        const quest = this.visitorQuests.find(q => q.id === id);
+        if (quest) quest.status = 'completed';
+      });
+      Object.keys(this.state.visitorQuests.questProgress).forEach(questId => {
+        const quest = this.visitorQuests.find(q => q.id === questId);
+        if (quest && this.state.visitorQuests!.questProgress[questId]) {
+          const progress = this.state.visitorQuests!.questProgress[questId];
+          quest.requiredItems.forEach(item => {
+            if (progress[item.id] && progress[item.id] >= item.quantity) {
+              item.collected = true;
+            }
+          });
+        }
+      });
+      this.updateQuestStatuses();
+    }
   }
 
   getState(): GameState {
@@ -259,6 +306,8 @@ class Store {
         eventBus.emit('chapter:complete', { chapterId: currentChapter.id });
       }
     }
+
+    this.updateQuestProgressOnClueCollect(clueId);
 
     eventBus.emit('clue:collect', { clueId });
     this.saveToStorage();
@@ -501,6 +550,8 @@ class Store {
     this.nightEvents = JSON.parse(JSON.stringify(NIGHT_EVENTS));
     this.relics = JSON.parse(JSON.stringify(RELICS));
     this.restorationMaterials = JSON.parse(JSON.stringify(RESTORATION_MATERIALS));
+    this.visitorQuests = JSON.parse(JSON.stringify(VISITOR_QUESTS));
+    this.chapterStartTime = Date.now();
     this.state = {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -536,6 +587,16 @@ class Store {
         unlockedHalls: [],
         linkedMechanismProgress: {},
         currentInvestigationPhase: 1
+      },
+      visitorQuests: {
+        activeQuests: [],
+        completedQuests: [],
+        readyQuests: [],
+        questProgress: {},
+        chapterEvaluations: [],
+        totalScore: 0,
+        currentChapterScore: 0,
+        questHistory: []
       }
     };
     this.applyStateToData();
@@ -998,6 +1059,329 @@ class Store {
 
   getLinkedMechanisms(): Mechanism[] {
     return this.mechanisms.filter(m => m.isLinked).map(m => ({ ...m }));
+  }
+
+  getVisitorQuests(): VisitorQuest[] {
+    return this.visitorQuests.map(q => ({ ...q }));
+  }
+
+  getVisitorQuestsByChapter(chapterId: string): VisitorQuest[] {
+    return this.visitorQuests.filter(q => q.chapterId === chapterId).map(q => ({ ...q }));
+  }
+
+  getAvailableQuests(chapterId: string): VisitorQuest[] {
+    return this.visitorQuests.filter(q =>
+      q.chapterId === chapterId &&
+      this.isQuestAvailable(q)
+    ).map(q => ({ ...q }));
+  }
+
+  getActiveQuests(): VisitorQuest[] {
+    return this.visitorQuests.filter(q =>
+      q.status === 'accepted' || q.status === 'ready'
+    ).map(q => ({ ...q }));
+  }
+
+  getCompletedQuests(chapterId?: string): VisitorQuest[] {
+    if (chapterId) {
+      return this.visitorQuests.filter(q =>
+        q.chapterId === chapterId && q.status === 'completed'
+      ).map(q => ({ ...q }));
+    }
+    return this.visitorQuests.filter(q => q.status === 'completed').map(q => ({ ...q }));
+  }
+
+  getQuestById(questId: string): VisitorQuest | undefined {
+    return this.visitorQuests.find(q => q.id === questId);
+  }
+
+  getVisitorQuestState(): VisitorQuestState {
+    return { ...this.state.visitorQuests };
+  }
+
+  private isQuestAvailable(quest: VisitorQuest): boolean {
+    if (quest.status !== 'available' && quest.status !== 'locked') return false;
+
+    if (!quest.unlockCondition) return quest.status === 'available';
+
+    const { requiredClues, requiredCompletedQuests } = quest.unlockCondition;
+
+    if (requiredClues && requiredClues.length > 0) {
+      const allCluesCollected = requiredClues.every(id =>
+        this.state.collectedClues.includes(id)
+      );
+      if (!allCluesCollected) return false;
+    }
+
+    if (requiredCompletedQuests && requiredCompletedQuests.length > 0) {
+      const allQuestsCompleted = requiredCompletedQuests.every(id =>
+        this.state.visitorQuests.completedQuests.includes(id)
+      );
+      if (!allQuestsCompleted) return false;
+    }
+
+    return true;
+  }
+
+  private updateQuestStatuses(): void {
+    this.visitorQuests.forEach(quest => {
+      if (quest.status === 'locked' && this.isQuestAvailable(quest)) {
+        quest.status = 'available';
+        eventBus.emit('quest:unlock', { questId: quest.id });
+      }
+    });
+  }
+
+  acceptQuest(questId: string): boolean {
+    const quest = this.visitorQuests.find(q => q.id === questId);
+    if (!quest) return false;
+    if (quest.status !== 'available') return false;
+    if (this.state.visitorQuests.activeQuests.includes(questId)) return false;
+
+    quest.status = 'accepted';
+    this.state.visitorQuests.activeQuests.push(questId);
+    this.state.visitorQuests.questProgress[questId] = {};
+
+    quest.requiredItems.forEach(item => {
+      this.state.visitorQuests.questProgress[questId][item.id] = 0;
+      if (item.source?.type === 'clue' && this.state.collectedClues.includes(item.source.targetId)) {
+        this.state.visitorQuests.questProgress[questId][item.id] = item.quantity;
+        item.collected = true;
+      }
+    });
+
+    const historyEntry: QuestHistoryEntry = {
+      questId,
+      chapterId: quest.chapterId,
+      acceptedAt: Date.now(),
+      completedAt: 0,
+      scoreEarned: 0
+    };
+    this.state.visitorQuests.questHistory.push(historyEntry);
+
+    this.checkQuestReady(questId);
+
+    eventBus.emit('quest:accept', { questId, quest });
+    this.saveToStorage();
+    return true;
+  }
+
+  private updateQuestProgressOnClueCollect(clueId: string): void {
+    this.state.visitorQuests.activeQuests.forEach(questId => {
+      const quest = this.visitorQuests.find(q => q.id === questId);
+      if (!quest) return;
+
+      quest.requiredItems.forEach(item => {
+        if (item.source?.type === 'clue' && item.source.targetId === clueId) {
+          if (!this.state.visitorQuests.questProgress[questId]) {
+            this.state.visitorQuests.questProgress[questId] = {};
+          }
+          const currentProgress = this.state.visitorQuests.questProgress[questId][item.id] || 0;
+          if (currentProgress < item.quantity) {
+            this.state.visitorQuests.questProgress[questId][item.id] = currentProgress + 1;
+            if (this.state.visitorQuests.questProgress[questId][item.id] >= item.quantity) {
+              item.collected = true;
+            }
+            eventBus.emit('quest:progress', {
+              questId,
+              itemId: item.id,
+              progress: this.state.visitorQuests.questProgress[questId][item.id],
+              total: item.quantity
+            });
+          }
+        }
+      });
+
+      this.checkQuestReady(questId);
+    });
+
+    this.updateQuestStatuses();
+  }
+
+  private checkQuestReady(questId: string): boolean {
+    const quest = this.visitorQuests.find(q => q.id === questId);
+    if (!quest || quest.status !== 'accepted') return false;
+
+    const allItemsCollected = quest.requiredItems.every(item => {
+      const progress = this.state.visitorQuests.questProgress[questId]?.[item.id] || 0;
+      return progress >= item.quantity;
+    });
+
+    if (allItemsCollected) {
+      quest.status = 'ready';
+      this.state.visitorQuests.activeQuests = this.state.visitorQuests.activeQuests.filter(id => id !== questId);
+      this.state.visitorQuests.readyQuests.push(questId);
+      eventBus.emit('quest:ready', { questId, quest });
+      return true;
+    }
+    return false;
+  }
+
+  deliverQuest(questId: string): { success: boolean; story: string } {
+    const quest = this.visitorQuests.find(q => q.id === questId);
+    if (!quest) return { success: false, story: '' };
+    if (quest.status !== 'ready') return { success: false, story: '' };
+
+    return { success: true, story: quest.storyDeliver };
+  }
+
+  completeQuest(questId: string): boolean {
+    const quest = this.visitorQuests.find(q => q.id === questId);
+    if (!quest) return false;
+    if (quest.status !== 'ready') return false;
+
+    quest.status = 'completed';
+    this.state.visitorQuests.readyQuests = this.state.visitorQuests.readyQuests.filter(id => id !== questId);
+    this.state.visitorQuests.completedQuests.push(questId);
+
+    let scoreEarned = 0;
+    if (quest.reward.type === 'score') {
+      scoreEarned = typeof quest.reward.value === 'number' ? quest.reward.value : 0;
+      this.state.visitorQuests.currentChapterScore += scoreEarned;
+      this.state.visitorQuests.totalScore += scoreEarned;
+    }
+
+    const historyEntry = this.state.visitorQuests.questHistory.find(h => h.questId === questId);
+    if (historyEntry) {
+      historyEntry.completedAt = Date.now();
+      historyEntry.scoreEarned = scoreEarned;
+    }
+
+    this.updateQuestStatuses();
+
+    eventBus.emit('quest:complete', {
+      questId,
+      quest,
+      scoreEarned,
+      totalScore: this.state.visitorQuests.totalScore
+    });
+    this.saveToStorage();
+    return true;
+  }
+
+  getQuestProgress(questId: string): Record<string, number> {
+    return this.state.visitorQuests.questProgress[questId] || {};
+  }
+
+  getQuestItemProgress(questId: string, itemId: string): number {
+    return this.state.visitorQuests.questProgress[questId]?.[itemId] || 0;
+  }
+
+  canAcceptQuest(questId: string): boolean {
+    const quest = this.visitorQuests.find(q => q.id === questId);
+    if (!quest) return false;
+    return this.isQuestAvailable(quest);
+  }
+
+  canDeliverQuest(questId: string): boolean {
+    const quest = this.visitorQuests.find(q => q.id === questId);
+    if (!quest) return false;
+    return quest.status === 'ready';
+  }
+
+  evaluateChapter(chapterId: string): ChapterEvaluation | null {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter) return null;
+
+    const existingEvaluation = this.state.visitorQuests.chapterEvaluations.find(e => e.chapterId === chapterId);
+    if (existingEvaluation?.evaluated) return { ...existingEvaluation };
+
+    const mainStoryScore = chapter.completed ? 500 : 0;
+    const sideQuestsScore = this.state.visitorQuests.currentChapterScore;
+
+    const collectedChapterClues = this.state.collectedClues.filter(id => {
+      const clue = this.clues.find(c => c.id === id);
+      return clue?.chapterId === chapterId;
+    });
+    const totalChapterClues = this.clues.filter(c => c.chapterId === chapterId).length;
+    const collectionScore = totalChapterClues > 0
+      ? Math.round((collectedChapterClues.length / totalChapterClues) * 300)
+      : 0;
+
+    const completionTime = Date.now() - this.chapterStartTime;
+    const expectedTime = 30 * 60 * 1000;
+    const efficiencyScore = completionTime < expectedTime
+      ? Math.round((1 - completionTime / expectedTime) * 200)
+      : 0;
+
+    const totalScore = mainStoryScore + sideQuestsScore + collectionScore + efficiencyScore;
+
+    let rank: 'S' | 'A' | 'B' | 'C' = 'C';
+    if (totalScore >= 900) rank = 'S';
+    else if (totalScore >= 750) rank = 'A';
+    else if (totalScore >= 600) rank = 'B';
+
+    const completedChapterQuests = this.state.visitorQuests.completedQuests.filter(id => {
+      const quest = this.visitorQuests.find(q => q.id === id);
+      return quest?.chapterId === chapterId;
+    });
+
+    const evaluation: ChapterEvaluation = {
+      chapterId,
+      mainStoryScore,
+      sideQuestsScore,
+      collectionScore,
+      efficiencyScore,
+      totalScore,
+      rank,
+      completedQuests: completedChapterQuests,
+      completionTime,
+      evaluated: true
+    };
+
+    const existingIndex = this.state.visitorQuests.chapterEvaluations.findIndex(e => e.chapterId === chapterId);
+    if (existingIndex >= 0) {
+      this.state.visitorQuests.chapterEvaluations[existingIndex] = evaluation;
+    } else {
+      this.state.visitorQuests.chapterEvaluations.push(evaluation);
+    }
+
+    eventBus.emit('chapter:evaluate', {
+      chapterId,
+      evaluation
+    });
+
+    this.state.visitorQuests.currentChapterScore = 0;
+    this.chapterStartTime = Date.now();
+
+    this.saveToStorage();
+    return { ...evaluation };
+  }
+
+  getChapterEvaluation(chapterId: string): ChapterEvaluation | undefined {
+    return this.state.visitorQuests.chapterEvaluations.find(e => e.chapterId === chapterId);
+  }
+
+  getAllChapterEvaluations(): ChapterEvaluation[] {
+    return this.state.visitorQuests.chapterEvaluations.map(e => ({ ...e }));
+  }
+
+  getTotalScore(): number {
+    return this.state.visitorQuests.totalScore;
+  }
+
+  getCurrentChapterScore(): number {
+    return this.state.visitorQuests.currentChapterScore;
+  }
+
+  getQuestHistory(): QuestHistoryEntry[] {
+    return this.state.visitorQuests.questHistory.map(h => ({ ...h }));
+  }
+
+  getCompletedQuestsCount(chapterId?: string): number {
+    if (chapterId) {
+      return this.visitorQuests.filter(q =>
+        q.chapterId === chapterId && q.status === 'completed'
+      ).length;
+    }
+    return this.state.visitorQuests.completedQuests.length;
+  }
+
+  getTotalQuestsCount(chapterId?: string): number {
+    if (chapterId) {
+      return this.visitorQuests.filter(q => q.chapterId === chapterId).length;
+    }
+    return this.visitorQuests.length;
   }
 }
 

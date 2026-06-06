@@ -191,6 +191,78 @@ export interface DualHallState {
   currentInvestigationPhase: number;
 }
 
+export interface VisitorQuest {
+  id: string;
+  chapterId: string;
+  title: string;
+  description: string;
+  visitorName: string;
+  visitorAvatar: string;
+  requiredItems: QuestItem[];
+  reward: QuestReward;
+  storyAccept: string;
+  storyDeliver: string;
+  storyComplete: string;
+  status: 'locked' | 'available' | 'accepted' | 'ready' | 'completed';
+  unlockCondition?: {
+    requiredClues?: string[];
+    requiredCompletedQuests?: string[];
+  };
+  deadline?: number;
+  priority: 'common' | 'rare' | 'epic' | 'legendary';
+}
+
+export interface QuestItem {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  quantity: number;
+  collected: boolean;
+  source?: {
+    type: 'clue' | 'exhibition' | 'mechanism' | 'trade';
+    targetId: string;
+  };
+}
+
+export interface QuestReward {
+  type: 'score' | 'item' | 'unlock' | 'story';
+  value: number | string;
+  description: string;
+}
+
+export interface ChapterEvaluation {
+  chapterId: string;
+  mainStoryScore: number;
+  sideQuestsScore: number;
+  collectionScore: number;
+  efficiencyScore: number;
+  totalScore: number;
+  rank: 'S' | 'A' | 'B' | 'C';
+  completedQuests: string[];
+  completionTime: number;
+  evaluated: boolean;
+}
+
+export interface VisitorQuestState {
+  activeQuests: string[];
+  completedQuests: string[];
+  readyQuests: string[];
+  questProgress: Record<string, Record<string, number>>;
+  chapterEvaluations: ChapterEvaluation[];
+  totalScore: number;
+  currentChapterScore: number;
+  questHistory: QuestHistoryEntry[];
+}
+
+export interface QuestHistoryEntry {
+  questId: string;
+  chapterId: string;
+  acceptedAt: number;
+  completedAt: number;
+  scoreEarned: number;
+}
+
 export interface GameState {
   currentChapter: string;
   currentExhibition: string;
@@ -202,4 +274,5 @@ export interface GameState {
   nightPatrol: NightPatrolState;
   restoration: RestorationState;
   dualHall: DualHallState;
+  visitorQuests: VisitorQuestState;
 }

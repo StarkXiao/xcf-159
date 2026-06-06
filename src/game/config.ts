@@ -12,7 +12,8 @@ export const GAME_CONFIG = {
     CREAM: 0xFFF8E1,
     GOLD: 0xFFD700,
     DARK_BG: 0x1A0F0A,
-    TRANSLUCENT_AMBER: 0x80D4AF37
+    TRANSLUCENT_AMBER: 0x80D4AF37,
+    GREEN: 0x4CAF50
   } as const,
   FONTS: {
     TITLE: '"ZCOOL XiaoWei", serif',
