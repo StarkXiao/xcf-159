@@ -13,10 +13,38 @@ export const GAME_CONFIG = {
     GOLD: 0xFFD700,
     DARK_BG: 0x1A0F0A,
     TRANSLUCENT_AMBER: 0x80D4AF37,
-    GREEN: 0x4CAF50
+    GREEN: 0x4CAF50,
+    EMERGENCY_RED: 0xE53935,
+    EMERGENCY_DIM: 0x4A0F0F,
+    POWER_OUTAGE_DARK: 0x0A0510,
+    POWER_OUTAGE_DIM: 0x1A0F1A,
+    FLICKER_WARM: 0xFFA726,
+    FLICKER_COLD: 0x90CAF9
   } as const,
   FONTS: {
     TITLE: '"ZCOOL XiaoWei", serif',
     BODY: '"Noto Serif SC", serif'
+  } as const,
+  POWER_OUTAGE: {
+    DEFAULT_EXHIBITION: 'exhibition_1',
+    FLICKER_INTERVAL_MIN: 100,
+    FLICKER_INTERVAL_MAX: 500,
+    EMERGENCY_BLINK_INTERVAL: 800,
+    WARNING_DURATION: 3000,
+    OUTAGE_DURATION: 60000,
+    RECOVERY_DURATION: 5000,
+    TIMED_MECHANISM_WARNING: 10000,
+    HIDDEN_HOTSPOT_GLOW_INTENSITY: 0.8
+  } as const,
+  AUDIO: {
+    BGM_POWER_OUTAGE: 'bgm_power_outage',
+    BGM_EMERGENCY: 'bgm_emergency',
+    SFX_POWER_FAILURE: 'sfx_power_failure',
+    SFX_POWER_RESTORE: 'sfx_power_restore',
+    SFX_EMERGENCY_LIGHT: 'sfx_emergency_light',
+    SFX_FUSE_BLOW: 'sfx_fuse_blow',
+    SFX_CREAK: 'sfx_creak',
+    SFX_DISTANT_THUD: 'sfx_distant_thud',
+    SFX_WHISPER_ECHO: 'sfx_whisper_echo'
   } as const
 } as const;

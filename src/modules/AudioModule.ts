@@ -109,6 +109,10 @@ export class AudioModule {
                       name === 'bgm_mystery' ? 180 :
                       name === 'bgm_explore' ? 200 :
                       name === 'bgm_night' ? 110 :
+                      name === 'bgm_power_outage' ? 90 :
+                      name === 'bgm_emergency' ? 130 :
+                      name === 'bgm_blackout_warning' ? 150 :
+                      name === 'bgm_blackout_dark' ? 70 :
                       name === 'sfx_click' ? 800 :
                       name === 'sfx_collect' ? 600 :
                       name === 'sfx_success' ? 523 :
@@ -126,9 +130,21 @@ export class AudioModule {
                       name === 'sfx_float' ? 523 :
                       name === 'sfx_breath' ? 200 :
                       name === 'sfx_ticktock' ? 330 :
-                      name === 'sfx_amber' ? 440 : 440;
+                      name === 'sfx_amber' ? 440 :
+                      name === 'sfx_power_failure' ? 80 :
+                      name === 'sfx_power_restore' ? 350 :
+                      name === 'sfx_emergency_light' ? 600 :
+                      name === 'sfx_fuse_blow' ? 90 :
+                      name === 'sfx_creak' ? 100 :
+                      name === 'sfx_distant_thud' ? 60 :
+                      name === 'sfx_whisper_echo' ? 170 :
+                      name === 'sfx_power_flicker' ? 200 : 440;
 
     const duration = name === 'bgm_night' ? 12 :
+                     name === 'bgm_power_outage' ? 15 :
+                     name === 'bgm_emergency' ? 10 :
+                     name === 'bgm_blackout_warning' ? 8 :
+                     name === 'bgm_blackout_dark' ? 12 :
                      name === 'sfx_footsteps' ? 0.6 :
                      name === 'sfx_whisper' ? 1.2 :
                      name === 'sfx_glow' ? 0.8 :
@@ -142,6 +158,14 @@ export class AudioModule {
                      name === 'sfx_day_start' ? 1.0 :
                      name === 'sfx_event_resolve' ? 0.8 :
                      name === 'sfx_mechanism_reset' ? 0.8 :
+                     name === 'sfx_power_failure' ? 2.5 :
+                     name === 'sfx_power_restore' ? 2.0 :
+                     name === 'sfx_emergency_light' ? 1.0 :
+                     name === 'sfx_fuse_blow' ? 1.5 :
+                     name === 'sfx_creak' ? 2.0 :
+                     name === 'sfx_distant_thud' ? 1.2 :
+                     name === 'sfx_whisper_echo' ? 2.5 :
+                     name === 'sfx_power_flicker' ? 0.3 :
                      loop ? 8 : 0.3;
 
     return new Howl({

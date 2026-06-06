@@ -361,5 +361,53 @@ export const CLUES: Clue[] = [
     branchChoiceId: 'branch_cor_1',
     isEndingClue: true,
     endingId: 'ending_neutral'
+  },
+  {
+    id: 'clue_blackout_1',
+    name: '紧急备用钥匙',
+    description: '在黑暗中摸到的一把冰冷的钥匙，上面刻着"紧急出口"的字样。这应该是为突发情况准备的备用钥匙。',
+    icon: '🔑',
+    chapterId: 'chapter_1',
+    isMemory: false,
+    collected: false
+  },
+  {
+    id: 'clue_blackout_2',
+    name: '应急灯使用说明',
+    description: '一张泛黄的说明书，详细说明了应急照明系统的操作方法。上面有爷爷的笔迹："琥珀，记住，黑暗中永远不要放弃希望。"',
+    icon: '📋',
+    chapterId: 'chapter_1',
+    isMemory: true,
+    memoryOrder: 4,
+    collected: false
+  },
+  {
+    id: 'clue_blackout_3',
+    name: '泛黄的老照片',
+    description: '手电筒光照亮了一张老照片，照片中是年幼的琥珀和爷爷在博物馆的合影。背面写着："无论发生什么，爷爷永远在你身边。"',
+    icon: '📷',
+    chapterId: 'chapter_1',
+    isMemory: true,
+    memoryOrder: 5,
+    collected: false
+  },
+  {
+    id: 'clue_blackout_emergency',
+    name: '紧急开关操作记录',
+    description: '成功启动紧急开关后找到的一份记录，详细记载了博物馆电力系统的布局。原来爷爷早就预料到可能会发生这种情况。',
+    icon: '📜',
+    chapterId: 'chapter_1',
+    isMemory: false,
+    collected: false
+  },
+  {
+    id: 'clue_blackout_final',
+    name: '爷爷的最后留言',
+    description: '在电力恢复前找到的一卷磁带，里面是爷爷的声音："琥珀，如果你听到这段录音，说明你已经通过了考验。记住，最黑暗的时刻，也是最接近光明的时刻。这座博物馆，以及我所有的记忆，现在都交给你了。"',
+    icon: '📼',
+    chapterId: 'chapter_1',
+    isMemory: true,
+    memoryOrder: 6,
+    collected: false
   }
 ];

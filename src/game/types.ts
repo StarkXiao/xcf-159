@@ -220,6 +220,73 @@ export interface NightEvent {
   sfx: string;
 }
 
+export type LightingState = 'normal' | 'flickering' | 'dim' | 'dark' | 'emergency';
+export type PowerOutagePhase = 'idle' | 'warning' | 'outage' | 'recovery' | 'complete';
+export type HiddenHotspotType = 'clue' | 'mechanism' | 'exit' | 'story';
+
+export interface HiddenHotspot {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: HiddenHotspotType;
+  targetId: string;
+  hint: string;
+  activated: boolean;
+  visibleInDark: boolean;
+  requiredLighting?: LightingState;
+}
+
+export interface TimedMechanism {
+  id: string;
+  mechanismId: string;
+  exhibitionId: string;
+  timeLimit: number;
+  startTime: number;
+  endTime: number;
+  active: boolean;
+  completed: boolean;
+  failed: boolean;
+  reward?: string;
+  penalty?: string;
+}
+
+export interface PowerOutageEvent {
+  id: string;
+  exhibitionId: string;
+  phase: PowerOutagePhase;
+  name: string;
+  description: string;
+  triggered: boolean;
+  completed: boolean;
+  lightingState: LightingState;
+  duration: number;
+  revealHiddenHotspots: string[];
+  triggerTimedMechanisms: string[];
+  audioTransition: {
+    from: string;
+    to: string;
+    sfx: string;
+  };
+  icon: string;
+}
+
+export interface PowerOutageState {
+  active: boolean;
+  currentPhase: PowerOutagePhase;
+  currentExhibitionId: string;
+  activeEvents: string[];
+  completedEvents: string[];
+  lightingState: LightingState;
+  revealedHotspots: string[];
+  activeTimedMechanisms: string[];
+  completedTimedMechanisms: string[];
+  failedTimedMechanisms: string[];
+  eventStartTime: number;
+  totalPowerOutages: number;
+}
+
 export interface NightPatrolState {
   mode: ExhibitionMode;
   activeEvents: string[];
@@ -227,6 +294,7 @@ export interface NightPatrolState {
   resetMechanisms: string[];
   patrolStartTime: number;
   totalEventsResolved: number;
+  powerOutage: PowerOutageState;
 }
 
 export interface Relic {
@@ -499,4 +567,35 @@ export interface BranchChoiceSubmitResult {
   unlocksClue?: string;
   unlocksExhibition?: string;
   reward?: string;
+}
+
+export interface TimedMechanismResult {
+  success: boolean;
+  mechanismId: string;
+  timedMechanismId: string;
+  timeRemaining?: number;
+  completed?: boolean;
+  failed?: boolean;
+  reward?: string;
+  penalty?: string;
+  message?: string;
+}
+
+export interface PowerOutageResult {
+  success: boolean;
+  eventId: string;
+  phase: PowerOutagePhase;
+  lightingState: LightingState;
+  revealedHotspots?: string[];
+  triggeredMechanisms?: string[];
+  message?: string;
+}
+
+export interface HiddenHotspotInteractionResult {
+  success: boolean;
+  hotspotId: string;
+  targetId: string;
+  type: HiddenHotspotType;
+  unlocked?: boolean;
+  message?: string;
 }

@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -10,7 +10,9 @@ import { TIMELINE_EVENTS } from './data/timelineEvents';
 import { AUTHENTICITY_RELICS, AUTHENTICITY_REWARDS } from './data/authenticity';
 import { ENDINGS } from './data/endings';
 import { BRANCH_CHOICES } from './data/branchChoices';
+import { HIDDEN_HOTSPOTS, TIMED_MECHANISMS, POWER_OUTAGE_EVENTS, POWER_OUTAGE_CLUES, POWER_OUTAGE_MECHANISMS } from './data/powerOutageEvents';
 import { eventBus } from './EventBus';
+import { GAME_CONFIG } from './config';
 
 class Store {
   private state: GameState;
@@ -29,14 +31,17 @@ class Store {
   private authenticityRewards: AuthenticityReward[];
   private endings: Ending[];
   private branchChoices: BranchChoice[];
+  private hiddenHotspots: HiddenHotspot[];
+  private timedMechanisms: TimedMechanism[];
+  private powerOutageEvents: PowerOutageEvent[];
   private chapterStartTime: number = Date.now();
 
   constructor() {
     const savedState = this.loadFromStorage();
-    this.clues = JSON.parse(JSON.stringify(CLUES));
+    this.clues = JSON.parse(JSON.stringify(CLUES)).concat(JSON.parse(JSON.stringify(POWER_OUTAGE_CLUES)));
     this.exhibitions = JSON.parse(JSON.stringify(EXHIBITIONS));
     this.chapters = JSON.parse(JSON.stringify(CHAPTERS));
-    this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS));
+    this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS)).concat(JSON.parse(JSON.stringify(POWER_OUTAGE_MECHANISMS)));
     this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
     this.nightEvents = JSON.parse(JSON.stringify(NIGHT_EVENTS));
     this.relics = JSON.parse(JSON.stringify(RELICS));
@@ -48,6 +53,9 @@ class Store {
     this.authenticityRewards = JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS));
     this.endings = JSON.parse(JSON.stringify(ENDINGS));
     this.branchChoices = JSON.parse(JSON.stringify(BRANCH_CHOICES));
+    this.hiddenHotspots = JSON.parse(JSON.stringify(HIDDEN_HOTSPOTS));
+    this.timedMechanisms = JSON.parse(JSON.stringify(TIMED_MECHANISMS));
+    this.powerOutageEvents = JSON.parse(JSON.stringify(POWER_OUTAGE_EVENTS));
 
     const defaultArchive: ArchiveState = {
       unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],
@@ -57,13 +65,29 @@ class Store {
       completedChapters: []
     };
 
+    const defaultPowerOutage: PowerOutageState = {
+      active: false,
+      currentPhase: 'idle',
+      currentExhibitionId: '',
+      activeEvents: [],
+      completedEvents: [],
+      lightingState: 'normal',
+      revealedHotspots: [],
+      activeTimedMechanisms: [],
+      completedTimedMechanisms: [],
+      failedTimedMechanisms: [],
+      eventStartTime: 0,
+      totalPowerOutages: 0
+    };
+
     const defaultNightPatrol: NightPatrolState = {
       mode: 'day',
       activeEvents: [],
       resolvedEvents: [],
       resetMechanisms: [],
       patrolStartTime: 0,
-      totalEventsResolved: 0
+      totalEventsResolved: 0,
+      powerOutage: defaultPowerOutage
     };
 
     const defaultRestoration: RestorationState = {
@@ -283,6 +307,33 @@ class Store {
         const mech = this.mechanisms.find(m => m.id === id);
         if (mech) mech.solved = false;
       });
+
+      if (this.state.nightPatrol.powerOutage) {
+        this.state.nightPatrol.powerOutage.activeEvents.forEach(id => {
+          const event = this.powerOutageEvents.find(e => e.id === id);
+          if (event) event.triggered = true;
+        });
+        this.state.nightPatrol.powerOutage.completedEvents.forEach(id => {
+          const event = this.powerOutageEvents.find(e => e.id === id);
+          if (event) event.completed = true;
+        });
+        this.state.nightPatrol.powerOutage.revealedHotspots.forEach(id => {
+          const hotspot = this.hiddenHotspots.find(h => h.id === id);
+          if (hotspot) hotspot.activated = true;
+        });
+        this.state.nightPatrol.powerOutage.activeTimedMechanisms.forEach(id => {
+          const mech = this.timedMechanisms.find(m => m.id === id);
+          if (mech) mech.active = true;
+        });
+        this.state.nightPatrol.powerOutage.completedTimedMechanisms.forEach(id => {
+          const mech = this.timedMechanisms.find(m => m.id === id);
+          if (mech) mech.completed = true;
+        });
+        this.state.nightPatrol.powerOutage.failedTimedMechanisms.forEach(id => {
+          const mech = this.timedMechanisms.find(m => m.id === id);
+          if (mech) mech.failed = true;
+        });
+      }
     }
 
     if (this.state.restoration) {
@@ -769,10 +820,10 @@ class Store {
 
   resetGame(): void {
     localStorage.removeItem('amber-memory-hall-save');
-    this.clues = JSON.parse(JSON.stringify(CLUES));
+    this.clues = JSON.parse(JSON.stringify(CLUES)).concat(JSON.parse(JSON.stringify(POWER_OUTAGE_CLUES)));
     this.exhibitions = JSON.parse(JSON.stringify(EXHIBITIONS));
     this.chapters = JSON.parse(JSON.stringify(CHAPTERS));
-    this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS));
+    this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS)).concat(JSON.parse(JSON.stringify(POWER_OUTAGE_MECHANISMS)));
     this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
     this.nightEvents = JSON.parse(JSON.stringify(NIGHT_EVENTS));
     this.relics = JSON.parse(JSON.stringify(RELICS));
@@ -784,6 +835,9 @@ class Store {
     this.authenticityRewards = JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS));
     this.endings = JSON.parse(JSON.stringify(ENDINGS));
     this.branchChoices = JSON.parse(JSON.stringify(BRANCH_CHOICES));
+    this.hiddenHotspots = JSON.parse(JSON.stringify(HIDDEN_HOTSPOTS));
+    this.timedMechanisms = JSON.parse(JSON.stringify(TIMED_MECHANISMS));
+    this.powerOutageEvents = JSON.parse(JSON.stringify(POWER_OUTAGE_EVENTS));
     this.chapterStartTime = Date.now();
     this.state = {
       currentChapter: 'chapter_1',
@@ -805,7 +859,21 @@ class Store {
         resolvedEvents: [],
         resetMechanisms: [],
         patrolStartTime: 0,
-        totalEventsResolved: 0
+        totalEventsResolved: 0,
+        powerOutage: {
+          active: false,
+          currentPhase: 'idle',
+          currentExhibitionId: '',
+          activeEvents: [],
+          completedEvents: [],
+          lightingState: 'normal',
+          revealedHotspots: [],
+          activeTimedMechanisms: [],
+          completedTimedMechanisms: [],
+          failedTimedMechanisms: [],
+          eventStartTime: 0,
+          totalPowerOutages: 0
+        }
       },
       restoration: {
         collectedMaterials: [],
@@ -1000,6 +1068,337 @@ class Store {
 
   getTotalEventsResolved(): number {
     return this.state.nightPatrol.totalEventsResolved;
+  }
+
+  getPowerOutageState(): PowerOutageState {
+    return { ...this.state.nightPatrol.powerOutage };
+  }
+
+  getLightingState(): LightingState {
+    return this.state.nightPatrol.powerOutage.lightingState;
+  }
+
+  setLightingState(lightingState: LightingState): boolean {
+    if (this.state.nightPatrol.powerOutage.lightingState === lightingState) return false;
+
+    this.state.nightPatrol.powerOutage.lightingState = lightingState;
+    eventBus.emit('poweroutage:lighting-change', { lightingState });
+    this.saveToStorage();
+    return true;
+  }
+
+  startPowerOutage(exhibitionId: string = 'exhibition_1'): boolean {
+    if (this.state.nightPatrol.powerOutage.active) return false;
+
+    this.state.nightPatrol.powerOutage.active = true;
+    this.state.nightPatrol.powerOutage.currentPhase = 'warning';
+    this.state.nightPatrol.powerOutage.currentExhibitionId = exhibitionId;
+    this.state.nightPatrol.powerOutage.eventStartTime = Date.now();
+    this.state.nightPatrol.powerOutage.totalPowerOutages++;
+
+    eventBus.emit('poweroutage:start', { exhibitionId });
+    this.saveToStorage();
+
+    setTimeout(() => {
+      this.advancePowerOutagePhase();
+    }, GAME_CONFIG.POWER_OUTAGE.WARNING_DURATION);
+
+    return true;
+  }
+
+  private advancePowerOutagePhase(): void {
+    const currentPhase = this.state.nightPatrol.powerOutage.currentPhase;
+    const currentExhibitionId = this.state.nightPatrol.powerOutage.currentExhibitionId;
+
+    const phaseOrder: PowerOutagePhase[] = ['warning', 'outage', 'recovery', 'complete'];
+    const currentIndex = phaseOrder.indexOf(currentPhase);
+
+    if (currentIndex >= 0 && currentIndex < phaseOrder.length - 1) {
+      const nextPhase = phaseOrder[currentIndex + 1];
+      this.state.nightPatrol.powerOutage.currentPhase = nextPhase;
+
+      const nextEvent = this.powerOutageEvents.find(
+        e => e.phase === nextPhase && e.exhibitionId === currentExhibitionId && !e.triggered
+      );
+
+      if (nextEvent) {
+        this.triggerPowerOutageEvent(nextEvent.id);
+      } else if (nextPhase === 'complete') {
+        this.endPowerOutage();
+      }
+    }
+  }
+
+  triggerPowerOutageEvent(eventId: string): PowerOutageEvent | null {
+    const event = this.powerOutageEvents.find(e => e.id === eventId);
+    if (!event || event.triggered) return null;
+
+    event.triggered = true;
+    this.state.nightPatrol.powerOutage.activeEvents.push(eventId);
+    this.state.nightPatrol.powerOutage.currentExhibitionId = event.exhibitionId;
+
+    this.setLightingState(event.lightingState);
+
+    event.revealHiddenHotspots.forEach(hotspotId => {
+      this.revealHiddenHotspot(hotspotId);
+    });
+
+    event.triggerTimedMechanisms.forEach(timedMechId => {
+      this.startTimedMechanism(timedMechId);
+    });
+
+    eventBus.emit('poweroutage:event-trigger', { eventId, event });
+    this.saveToStorage();
+
+    if (event.duration > 0) {
+      setTimeout(() => {
+        this.completePowerOutageEvent(eventId);
+      }, event.duration);
+    }
+
+    return { ...event };
+  }
+
+  completePowerOutageEvent(eventId: string): boolean {
+    const event = this.powerOutageEvents.find(e => e.id === eventId);
+    if (!event || event.completed) return false;
+
+    event.completed = true;
+    this.state.nightPatrol.powerOutage.completedEvents.push(eventId);
+    this.state.nightPatrol.powerOutage.activeEvents = this.state.nightPatrol.powerOutage.activeEvents.filter(id => id !== eventId);
+
+    if (event.phase === 'outage') {
+      const remainingOutageEvents = this.powerOutageEvents.filter(
+        e => e.phase === 'outage' && e.exhibitionId === event.exhibitionId && !e.completed
+      );
+      if (remainingOutageEvents.length === 0) {
+        setTimeout(() => {
+          this.advancePowerOutagePhase();
+        }, 2000);
+      }
+    }
+
+    eventBus.emit('poweroutage:event-complete', { eventId, event });
+    this.saveToStorage();
+    return true;
+  }
+
+  endPowerOutage(): boolean {
+    if (!this.state.nightPatrol.powerOutage.active) return false;
+
+    this.state.nightPatrol.powerOutage.active = false;
+    this.state.nightPatrol.powerOutage.currentPhase = 'complete';
+    this.state.nightPatrol.powerOutage.lightingState = 'normal';
+
+    this.timedMechanisms.forEach(mech => {
+      if (mech.active && !mech.completed && !mech.failed) {
+        this.failTimedMechanism(mech.id);
+      }
+    });
+
+    eventBus.emit('poweroutage:end', {});
+    eventBus.emit('poweroutage:lighting-change', { lightingState: 'normal' });
+    this.saveToStorage();
+    return true;
+  }
+
+  getPowerOutageEvents(): PowerOutageEvent[] {
+    return this.powerOutageEvents.map(e => ({ ...e }));
+  }
+
+  getActivePowerOutageEvents(exhibitionId?: string): PowerOutageEvent[] {
+    return this.powerOutageEvents.filter(e => {
+      const matchesExhibition = exhibitionId ? e.exhibitionId === exhibitionId : true;
+      return matchesExhibition && e.triggered && !e.completed;
+    }).map(e => ({ ...e }));
+  }
+
+  getPowerOutageEventById(eventId: string): PowerOutageEvent | undefined {
+    return this.powerOutageEvents.find(e => e.id === eventId);
+  }
+
+  getHiddenHotspots(): HiddenHotspot[] {
+    return this.hiddenHotspots.map(h => ({ ...h }));
+  }
+
+  getVisibleHiddenHotspots(lightingState: LightingState): HiddenHotspot[] {
+    return this.hiddenHotspots.filter(h => {
+      const isRevealed = this.state.nightPatrol.powerOutage.revealedHotspots.includes(h.id);
+      const lightingMatch = !h.requiredLighting || h.requiredLighting === lightingState;
+      return h.visibleInDark && isRevealed && lightingMatch;
+    }).map(h => ({ ...h }));
+  }
+
+  getRevealedHiddenHotspots(): HiddenHotspot[] {
+    return this.hiddenHotspots.filter(h =>
+      this.state.nightPatrol.powerOutage.revealedHotspots.includes(h.id)
+    ).map(h => ({ ...h }));
+  }
+
+  getHiddenHotspotById(hotspotId: string): HiddenHotspot | undefined {
+    return this.hiddenHotspots.find(h => h.id === hotspotId);
+  }
+
+  revealHiddenHotspot(hotspotId: string): boolean {
+    if (this.state.nightPatrol.powerOutage.revealedHotspots.includes(hotspotId)) return false;
+
+    const hotspot = this.hiddenHotspots.find(h => h.id === hotspotId);
+    if (!hotspot) return false;
+
+    this.state.nightPatrol.powerOutage.revealedHotspots.push(hotspotId);
+    eventBus.emit('poweroutage:hotspot-reveal', { hotspotId, hotspot });
+    this.saveToStorage();
+    return true;
+  }
+
+  interactWithHiddenHotspot(hotspotId: string): { success: boolean; type: string; targetId: string; reason?: string } {
+    const hotspot = this.hiddenHotspots.find(h => h.id === hotspotId);
+    if (!hotspot) return { success: false, type: 'unknown', targetId: '', reason: '热点不存在' };
+    if (!this.state.nightPatrol.powerOutage.revealedHotspots.includes(hotspotId)) {
+      return { success: false, type: hotspot.type, targetId: hotspot.targetId, reason: '热点未显现' };
+    }
+
+    const currentLighting = this.state.nightPatrol.powerOutage.lightingState;
+    if (hotspot.requiredLighting && hotspot.requiredLighting !== currentLighting) {
+      return { success: false, type: hotspot.type, targetId: hotspot.targetId, reason: '照明状态不匹配' };
+    }
+
+    if (hotspot.type === 'clue') {
+      const collected = this.collectClue(hotspot.targetId);
+      if (collected) {
+        hotspot.activated = true;
+        eventBus.emit('poweroutage:hotspot-interact', { hotspotId, hotspot, result: 'collected' });
+        this.saveToStorage();
+        return { success: true, type: 'clue', targetId: hotspot.targetId };
+      }
+      return { success: false, type: 'clue', targetId: hotspot.targetId, reason: '线索已收集' };
+    } else if (hotspot.type === 'mechanism') {
+      return { success: true, type: 'mechanism', targetId: hotspot.targetId };
+    } else if (hotspot.type === 'story') {
+      hotspot.activated = true;
+      eventBus.emit('poweroutage:hotspot-interact', { hotspotId, hotspot, result: 'story' });
+      this.saveToStorage();
+      return { success: true, type: 'story', targetId: hotspot.targetId };
+    }
+
+    return { success: false, type: hotspot.type, targetId: hotspot.targetId, reason: '未知交互类型' };
+  }
+
+  getTimedMechanisms(): TimedMechanism[] {
+    return this.timedMechanisms.map(m => ({ ...m }));
+  }
+
+  getTimedMechanismById(mechId: string): TimedMechanism | undefined {
+    return this.timedMechanisms.find(m => m.id === mechId);
+  }
+
+  getActiveTimedMechanisms(exhibitionId?: string): TimedMechanism[] {
+    return this.timedMechanisms.filter(m => {
+      const matchesExhibition = exhibitionId ? m.exhibitionId === exhibitionId : true;
+      return matchesExhibition && m.active && !m.completed && !m.failed;
+    }).map(m => ({ ...m }));
+  }
+
+  startTimedMechanism(timedMechId: string): boolean {
+    const timedMech = this.timedMechanisms.find(m => m.id === timedMechId);
+    if (!timedMech || timedMech.active || timedMech.completed || timedMech.failed) return false;
+
+    const now = Date.now();
+    timedMech.active = true;
+    timedMech.startTime = now;
+    timedMech.endTime = now + timedMech.timeLimit * 1000;
+
+    this.state.nightPatrol.powerOutage.activeTimedMechanisms.push(timedMechId);
+
+    eventBus.emit('poweroutage:timed-mechanism-start', { timedMechId, timedMech });
+    this.saveToStorage();
+
+    setTimeout(() => {
+      const currentMech = this.timedMechanisms.find(m => m.id === timedMechId);
+      if (currentMech && currentMech.active && !currentMech.completed) {
+        this.failTimedMechanism(timedMechId);
+      }
+    }, timedMech.timeLimit * 1000);
+
+    return true;
+  }
+
+  getRemainingTimeForMechanism(timedMechId: string): number {
+    const timedMech = this.timedMechanisms.find(m => m.id === timedMechId);
+    if (!timedMech || !timedMech.active || timedMech.completed || timedMech.failed) return 0;
+
+    const remaining = timedMech.endTime - Date.now();
+    return Math.max(0, Math.floor(remaining / 1000));
+  }
+
+  completeTimedMechanism(timedMechId: string): boolean {
+    const timedMech = this.timedMechanisms.find(m => m.id === timedMechId);
+    if (!timedMech || !timedMech.active || timedMech.completed || timedMech.failed) return false;
+
+    const remaining = this.getRemainingTimeForMechanism(timedMechId);
+    if (remaining <= 0) {
+      this.failTimedMechanism(timedMechId);
+      return false;
+    }
+
+    timedMech.completed = true;
+    timedMech.active = false;
+
+    this.state.nightPatrol.powerOutage.activeTimedMechanisms = this.state.nightPatrol.powerOutage.activeTimedMechanisms.filter(id => id !== timedMechId);
+    this.state.nightPatrol.powerOutage.completedTimedMechanisms.push(timedMechId);
+
+    if (timedMech.reward) {
+      if (timedMech.reward.startsWith('clue_')) {
+        this.collectClue(timedMech.reward);
+      } else if (timedMech.reward === 'complete_power_outage') {
+        this.endPowerOutage();
+      }
+    }
+
+    eventBus.emit('poweroutage:timed-mechanism-complete', { timedMechId, timedMech, remaining });
+    this.saveToStorage();
+    return true;
+  }
+
+  failTimedMechanism(timedMechId: string): boolean {
+    const timedMech = this.timedMechanisms.find(m => m.id === timedMechId);
+    if (!timedMech || timedMech.completed || timedMech.failed) return false;
+
+    timedMech.failed = true;
+    timedMech.active = false;
+
+    this.state.nightPatrol.powerOutage.activeTimedMechanisms = this.state.nightPatrol.powerOutage.activeTimedMechanisms.filter(id => id !== timedMechId);
+    this.state.nightPatrol.powerOutage.failedTimedMechanisms.push(timedMechId);
+
+    eventBus.emit('poweroutage:timed-mechanism-fail', { timedMechId, timedMech });
+    this.saveToStorage();
+    return true;
+  }
+
+  checkTimedMechanismPassword(timedMechId: string, password: string): boolean {
+    const timedMech = this.timedMechanisms.find(m => m.id === timedMechId);
+    if (!timedMech || !timedMech.active || timedMech.completed || timedMech.failed) return false;
+
+    const mech = this.mechanisms.find(m => m.id === timedMech.mechanismId);
+    if (!mech || mech.type !== 'password') return false;
+
+    return password === mech.answer;
+  }
+
+  solveTimedMechanism(timedMechId: string): boolean {
+    const timedMech = this.timedMechanisms.find(m => m.id === timedMechId);
+    if (!timedMech || !timedMech.active || timedMech.completed || timedMech.failed) return false;
+
+    const mech = this.mechanisms.find(m => m.id === timedMech.mechanismId);
+    if (mech) {
+      mech.solved = true;
+      if (!this.state.solvedMechanisms.includes(mech.id)) {
+        this.state.solvedMechanisms.push(mech.id);
+      }
+      eventBus.emit('mechanism:solve', { mechanismId: mech.id, reward: mech.reward });
+    }
+
+    return this.completeTimedMechanism(timedMechId);
   }
 
   getRestorationMaterials(): RestorationMaterial[] {

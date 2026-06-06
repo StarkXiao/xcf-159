@@ -577,5 +577,32 @@ export const MECHANISMS: Mechanism[] = [
     hint: '当所有记忆归位，当所有选择尘埃落定，答案就是...',
     solved: false,
     displayName: '结局之门'
+  },
+  {
+    id: 'mech_blackout_emergency',
+    type: 'sequence',
+    answer: [3, 1, 2],
+    reward: 'clue_blackout_emergency',
+    hint: '按照紧急程度排序：红色按钮、黄色开关、绿色手柄',
+    solved: false,
+    displayName: '紧急开关面板'
+  },
+  {
+    id: 'mech_blackout_generator',
+    type: 'password',
+    answer: '1998',
+    reward: 'unlock_emergency_exit',
+    hint: '发电机启动密码是博物馆建成的年份',
+    solved: false,
+    displayName: '发电机控制面板'
+  },
+  {
+    id: 'mech_blackout_final',
+    type: 'password',
+    answer: '琥珀',
+    reward: 'clue_blackout_final',
+    hint: '在最黑暗的时刻，你最想见到的人是谁？',
+    solved: false,
+    displayName: '主电源恢复开关'
   }
 ];
