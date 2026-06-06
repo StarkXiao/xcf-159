@@ -14,8 +14,8 @@ export const CHARACTERS: Character[] = [
       { targetId: 'char_mother', relationshipType: 'family', description: '温柔的母亲' },
       { targetId: 'char_father', relationshipType: 'family', description: '忙碌的父亲' }
     ],
-    relatedClues: ['clue_1', 'clue_2', 'clue_3', 'clue_4', 'clue_5', 'clue_6', 'clue_10'],
-    relatedEvents: ['event_amber_birth', 'event_amber_childhood', 'event_amber_hospital']
+    relatedClues: ['clue_1', 'clue_2', 'clue_3', 'clue_4', 'clue_5', 'clue_6', 'clue_10', 'clue_cor_1', 'clue_cor_2', 'clue_cor_3', 'clue_cor_4', 'clue_cor_5', 'clue_cor_6', 'clue_cor_7', 'clue_cor_8', 'clue_cor_choice_1', 'clue_cor_choice_2', 'clue_cor_choice_3'],
+    relatedEvents: ['event_amber_birth', 'event_amber_childhood', 'event_amber_hospital', 'event_corridor_start', 'event_corridor_childhood', 'event_memory_sort_1', 'event_corridor_youth', 'event_branch_1', 'event_corridor_present', 'event_memory_sort_final', 'event_branch_final', 'event_ending_true', 'event_ending_good', 'event_ending_neutral', 'event_ending_bad']
   },
   {
     id: 'char_grandpa',
@@ -30,8 +30,8 @@ export const CHARACTERS: Character[] = [
       { targetId: 'char_father', relationshipType: 'family', description: '儿子' },
       { targetId: 'char_artisan_huai', relationshipType: 'mysterious', description: '神秘的先祖？' }
     ],
-    relatedClues: ['clue_6', 'clue_7', 'clue_8', 'clue_9', 'clue_10'],
-    relatedEvents: ['event_grandpa_museum', 'event_grandpa_gift', 'event_grandpa_letter']
+    relatedClues: ['clue_6', 'clue_7', 'clue_8', 'clue_9', 'clue_10', 'clue_cor_1', 'clue_cor_6', 'clue_cor_8'],
+    relatedEvents: ['event_grandpa_museum', 'event_grandpa_gift', 'event_grandpa_letter', 'event_corridor_start', 'event_corridor_childhood', 'event_corridor_present', 'event_memory_sort_final', 'event_branch_final', 'event_ending_true', 'event_ending_good']
   },
   {
     id: 'char_mother',

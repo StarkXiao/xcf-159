@@ -245,5 +245,121 @@ export const CLUES: Clue[] = [
     isShared: true,
     requiredClueFromOtherHall: 'clue_h3'
   },
-  ...AUTHENTICITY_CLUES
+  ...AUTHENTICITY_CLUES,
+  {
+    id: 'clue_cor_1',
+    name: '回廊钥匙',
+    description: '一把古铜色的钥匙，钥匙柄上刻着"记忆"两个字。这是开启记忆回廊的唯一钥匙。握着它，你能感受到一股温暖的力量，仿佛有无数的记忆在呼唤着你。',
+    icon: '🗝️',
+    chapterId: 'chapter_6',
+    isMemory: true,
+    memoryOrder: 1,
+    collected: false
+  },
+  {
+    id: 'clue_cor_2',
+    name: '向日葵花语',
+    description: '一片干枯的向日葵花瓣，夹在一本童话书中。花瓣背面写着一行小字："送给我的小太阳——爷爷。"向日葵的花语是"沉默的爱"，就像爷爷对琥珀的爱一样，深沉而温暖。',
+    icon: '🌻',
+    chapterId: 'chapter_6',
+    isMemory: true,
+    memoryOrder: 2,
+    collected: false
+  },
+  {
+    id: 'clue_cor_3',
+    name: '蝴蝶标本',
+    description: '一只制作精美的蝴蝶标本，翅膀上的花纹依然清晰可见。标签上写着："八岁生日，和爷爷一起制作。"这只蝴蝶是琥珀童年最珍贵的回忆之一，象征着那些无忧无虑的美好时光。',
+    icon: '🦋',
+    chapterId: 'chapter_6',
+    isMemory: true,
+    memoryOrder: 3,
+    collected: false
+  },
+  {
+    id: 'clue_cor_4',
+    name: '大学录取通知书',
+    description: '一张名牌大学的录取通知书，专业是金融管理。这是父母为琥珀规划的人生道路——稳定、体面、前途光明。通知书的边缘已经被反复摩挲得有些发皱，承载着父母沉甸甸的期望。',
+    icon: '📨',
+    chapterId: 'chapter_6',
+    isMemory: true,
+    memoryOrder: 4,
+    collected: false
+  },
+  {
+    id: 'clue_cor_5',
+    name: '艺术学院邀请函',
+    description: '一封来自国外著名艺术学院的邀请函，上面写着琥珀的作品展现出了惊人的天赋。这是琥珀梦寐以求的机会，是她追寻艺术梦想的大门。信封上散发着淡淡的松节油香气，那是她最爱的味道。',
+    icon: '🎨',
+    chapterId: 'chapter_6',
+    isMemory: true,
+    memoryOrder: 5,
+    collected: false
+  },
+  {
+    id: 'clue_cor_6',
+    name: '爷爷的遗言',
+    description: '一段爷爷在病床上录下的音频文字记录："小琥珀，爷爷要走了。但爷爷的爱永远不会消失，它被封存在这座博物馆的每一件展品中。记住，最珍贵的不是文物本身，而是它们承载的记忆。替爷爷守护好这些记忆，好吗？"',
+    icon: '📼',
+    chapterId: 'chapter_6',
+    isMemory: true,
+    memoryOrder: 6,
+    collected: false
+  },
+  {
+    id: 'clue_cor_7',
+    name: '母亲的家书',
+    description: '一封母亲写给琥珀的信，字里行间充满了爱与理解："亲爱的女儿，无论你选择哪条路，妈妈都支持你。你不需要成为我们期待的样子，你只需要成为你自己。追逐梦想吧，我们永远是你最坚实的后盾。"',
+    icon: '💌',
+    chapterId: 'chapter_6',
+    isMemory: true,
+    memoryOrder: 7,
+    collected: false
+  },
+  {
+    id: 'clue_cor_8',
+    name: '琥珀的日记',
+    description: '琥珀的日记本，最后一页写着："今天我终于明白了爷爷为什么要建这座博物馆。记忆是我们最珍贵的财富，它让我们永远不会忘记那些爱过的人和事。我也要像爷爷一样，把最珍贵的记忆永远珍藏。永恒，就是被永远记住。"',
+    icon: '📔',
+    chapterId: 'chapter_6',
+    isMemory: true,
+    memoryOrder: 8,
+    collected: false
+  },
+  {
+    id: 'clue_cor_choice_1',
+    name: '追梦的勇气',
+    description: '当你选择追逐艺术梦想的那一刻，你感受到了琥珀心中的那份勇气和坚定。这是她人生中第一次为自己的选择负责，也是她成长的开始。这条路上会有很多困难，但她知道，只要有家人的支持，她什么都不怕。',
+    icon: '✨',
+    chapterId: 'chapter_6',
+    isMemory: false,
+    collected: false,
+    branchChoiceId: 'branch_cor_1',
+    isEndingClue: true,
+    endingId: 'ending_true'
+  },
+  {
+    id: 'clue_cor_choice_2',
+    name: '责任与担当',
+    description: '当你选择重点大学的那一刻，你感受到了琥珀心中的那份成熟与担当。她选择了一条更稳妥的道路，但这并不意味着放弃梦想。她会在完成学业的同时，继续追求自己热爱的艺术。这是另一种形式的勇敢。',
+    icon: '💪',
+    chapterId: 'chapter_6',
+    isMemory: false,
+    collected: false,
+    branchChoiceId: 'branch_cor_1',
+    isEndingClue: true,
+    endingId: 'ending_good'
+  },
+  {
+    id: 'clue_cor_choice_3',
+    name: '迷茫的代价',
+    description: '当你选择逃避的那一刻，你感受到了琥珀心中的那份恐惧和迷茫。她还没有准备好面对人生的重大选择，她需要更多的时间来认识自己。但有些机会一旦错过，就再也不会回来了。',
+    icon: '😔',
+    chapterId: 'chapter_6',
+    isMemory: false,
+    collected: false,
+    branchChoiceId: 'branch_cor_1',
+    isEndingClue: true,
+    endingId: 'ending_neutral'
+  }
 ];

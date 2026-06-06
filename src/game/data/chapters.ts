@@ -55,6 +55,48 @@ export const CHAPTERS: Chapter[] = [
     storyText: '当最后一件藏品的鉴定结果尘埃落定，你终于明白了爷爷的良苦用心。辨伪存真，不仅是文物工作者的天职，更是对历史的尊重，对文明的守护。爷爷用一生践行的信念，现在交到了你的手中...',
     completed: false,
     isAuthenticity: true
+  },
+  {
+    id: 'chapter_6',
+    title: '第六章：记忆回廊',
+    description: '博物馆的最深处隐藏着一条神秘的记忆回廊。在这里，你需要将散落的记忆碎片按时间顺序重新排列，穿越不同的记忆场景，面对关键的人生抉择。你的每一个选择都将导向不同的结局——是坚守初心，还是顺应命运？真相，等待你亲手揭开。',
+    exhibitions: ['exhibition_corridor_entrance', 'exhibition_corridor_childhood', 'exhibition_corridor_youth', 'exhibition_corridor_present', 'exhibition_corridor_ending'],
+    requiredClues: ['clue_cor_1', 'clue_cor_2', 'clue_cor_3', 'clue_cor_4', 'clue_cor_5', 'clue_cor_6', 'clue_cor_7', 'clue_cor_8'],
+    storyText: '当所有记忆碎片归位，当所有选择尘埃落定，你终于明白了琥珀记忆馆存在的真正意义。记忆不会因为时间的流逝而褪色，选择不会因为重来而失去价值。每一段记忆都值得被珍藏，每一次选择都是成长的印记。',
+    completed: false,
+    isMemoryCorridor: true,
+    memoryPhases: [
+      {
+        phase: 1,
+        name: '回廊入口',
+        exhibitionId: 'exhibition_corridor_entrance',
+        description: '记忆回廊的入口，一扇神秘的大门等待着你。',
+        requiredClues: ['clue_cor_1']
+      },
+      {
+        phase: 2,
+        name: '童年记忆',
+        exhibitionId: 'exhibition_corridor_childhood',
+        description: '穿越回琥珀的童年时光，重温那些无忧无虑的日子。',
+        requiredClues: ['clue_cor_2', 'clue_cor_3']
+      },
+      {
+        phase: 3,
+        name: '青春抉择',
+        exhibitionId: 'exhibition_corridor_youth',
+        description: '站在人生的十字路口，面对影响一生的重要选择。',
+        requiredClues: ['clue_cor_4', 'clue_cor_5']
+      },
+      {
+        phase: 4,
+        name: '此刻重逢',
+        exhibitionId: 'exhibition_corridor_present',
+        description: '回到现在，所有的记忆碎片即将拼凑完整。',
+        requiredClues: ['clue_cor_6', 'clue_cor_7', 'clue_cor_8']
+      }
+    ],
+    branchChoices: ['branch_cor_1', 'branch_cor_2'],
+    endings: ['ending_true', 'ending_good', 'ending_neutral', 'ending_bad']
   }
 ];
 
@@ -281,6 +323,72 @@ export const EXHIBITIONS: Exhibition[] = [
       { id: 'hs_final_story', x: 300, y: 500, width: 160, height: 160, type: 'mechanism', targetId: 'mech_auth_final', hint: '了解爷爷的故事', activated: false },
       { id: 'hs_back_final', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_auth_1', hint: '返回鉴定室', activated: false }
     ]
+  },
+  {
+    id: 'exhibition_corridor_entrance',
+    name: '记忆回廊·入口',
+    bgColor: GAME_CONFIG.COLORS.DEEP_PURPLE,
+    description: '一条幽深的走廊在你面前延伸，两侧的墙面闪烁着琥珀色的微光。墙上镶嵌着无数发光的碎片，每一片都封存着一段记忆。走廊尽头，一扇刻满符文的大门静静伫立，等待着被唤醒。空气中弥漫着熟悉而遥远的气息，仿佛时光在这里停滞。',
+    unlocked: false,
+    hotspots: [
+      { id: 'hs_cor_1', x: 150, y: 400, width: 120, height: 120, type: 'clue', targetId: 'clue_cor_1', hint: '回廊钥匙', activated: false },
+      { id: 'hs_cor_mech_1', x: 350, y: 650, width: 160, height: 160, type: 'mechanism', targetId: 'mech_cor_entrance', hint: '开启记忆回廊', activated: false },
+      { id: 'hs_cor_back_1', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_auth_final', hint: '返回珍藏密室', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_corridor_childhood',
+    name: '记忆回廊·童年',
+    bgColor: GAME_CONFIG.COLORS.AMBER,
+    description: '温暖的琥珀色光芒包裹着你，你仿佛穿越回了琥珀的童年时光。眼前是一片金色的向日葵花田，年幼的琥珀正追逐着一只蝴蝶。爷爷站在不远处，微笑着看着她，手中握着那枚熟悉的琥珀吊坠。空气中弥漫着阳光和花香的味道。',
+    unlocked: false,
+    hotspots: [
+      { id: 'hs_cor_2', x: 100, y: 350, width: 120, height: 120, type: 'clue', targetId: 'clue_cor_2', hint: '向日葵花语', activated: false },
+      { id: 'hs_cor_3', x: 550, y: 450, width: 120, height: 120, type: 'clue', targetId: 'clue_cor_3', hint: '蝴蝶标本', activated: false },
+      { id: 'hs_cor_mech_2', x: 320, y: 700, width: 160, height: 160, type: 'mechanism', targetId: 'mech_cor_memory_1', hint: '排列童年记忆碎片', activated: false },
+      { id: 'hs_cor_back_2', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_corridor_entrance', hint: '返回回廊入口', activated: false },
+      { id: 'hs_cor_to_youth', x: 600, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_corridor_youth', hint: '前往青春回廊', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_corridor_youth',
+    name: '记忆回廊·青春',
+    bgColor: GAME_CONFIG.COLORS.WARM_ORANGE,
+    description: '场景切换到青春校园。十六岁的琥珀站在人生的十字路口，手中拿着大学录取通知书和一封来自国外艺术学院的邀请函。一边是父母的期望，一边是自己的梦想。她的眼中闪烁着迷茫与坚定，这是一个将改变她一生的选择。',
+    unlocked: false,
+    hotspots: [
+      { id: 'hs_cor_4', x: 150, y: 350, width: 120, height: 120, type: 'clue', targetId: 'clue_cor_4', hint: '大学录取通知书', activated: false },
+      { id: 'hs_cor_5', x: 500, y: 400, width: 120, height: 120, type: 'clue', targetId: 'clue_cor_5', hint: '艺术学院邀请函', activated: false },
+      { id: 'hs_cor_mech_3', x: 320, y: 650, width: 160, height: 160, type: 'mechanism', targetId: 'mech_cor_branch_1', hint: '面对人生的第一次抉择', activated: false },
+      { id: 'hs_cor_back_3', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_corridor_childhood', hint: '返回童年回廊', activated: false },
+      { id: 'hs_cor_to_present', x: 600, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_corridor_present', hint: '前往此刻回廊', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_corridor_present',
+    name: '记忆回廊·此刻',
+    bgColor: GAME_CONFIG.COLORS.DARK_BG,
+    description: '回到现在，你站在记忆回廊的核心区域。四周漂浮着所有收集到的记忆碎片，它们按照时间顺序排列，形成一条璀璨的星河。你看到琥珀在不同阶段的样子：童年的纯真、青春的迷茫、成年后的坚定。现在，你需要做出最后的选择，揭开真正的结局。',
+    unlocked: false,
+    hotspots: [
+      { id: 'hs_cor_6', x: 100, y: 350, width: 120, height: 120, type: 'clue', targetId: 'clue_cor_6', hint: '爷爷的遗言', activated: false },
+      { id: 'hs_cor_7', x: 350, y: 300, width: 120, height: 120, type: 'clue', targetId: 'clue_cor_7', hint: '母亲的家书', activated: false },
+      { id: 'hs_cor_8', x: 550, y: 380, width: 120, height: 120, type: 'clue', targetId: 'clue_cor_8', hint: '琥珀的日记', activated: false },
+      { id: 'hs_cor_mech_4', x: 200, y: 650, width: 160, height: 160, type: 'mechanism', targetId: 'mech_cor_memory_final', hint: '拼凑完整的记忆', activated: false },
+      { id: 'hs_cor_mech_5', x: 480, y: 650, width: 160, height: 160, type: 'mechanism', targetId: 'mech_cor_branch_final', hint: '做出最终抉择', activated: false },
+      { id: 'hs_cor_back_4', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_corridor_youth', hint: '返回青春回廊', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_corridor_ending',
+    name: '记忆回廊·终章',
+    bgColor: GAME_CONFIG.COLORS.GOLD,
+    description: '金色的光芒笼罩着整个空间，你站在记忆回廊的尽头。一扇通往结局的大门在你面前缓缓打开。你的每一个选择，每一段记忆，都在此刻汇聚成最终的答案。琥珀的故事将如何收尾？一切，都取决于你。',
+    unlocked: false,
+    hotspots: [
+      { id: 'hs_cor_ending', x: 300, y: 500, width: 200, height: 200, type: 'mechanism', targetId: 'mech_cor_ending', hint: '揭开最终结局', activated: false },
+      { id: 'hs_cor_back_5', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_corridor_present', hint: '返回此刻回廊', activated: false }
+    ]
   }
 ];
 
@@ -390,5 +498,78 @@ export const MECHANISMS: Mechanism[] = [
     hint: '爷爷一生追求的答案...',
     solved: false,
     displayName: '爷爷的终极秘密'
+  },
+  {
+    id: 'mech_cor_entrance',
+    type: 'password',
+    answer: '记忆',
+    reward: 'exhibition_corridor_childhood',
+    hint: '回廊的钥匙上刻着两个字...',
+    solved: false,
+    displayName: '记忆回廊之门',
+    memoryCorridorPhase: {
+      phase: 1
+    }
+  },
+  {
+    id: 'mech_cor_memory_1',
+    type: 'memory_sort',
+    answer: [1, 2],
+    reward: 'unlock_corridor_phase_2',
+    hint: '按照记忆的时间顺序排列碎片：追逐蝴蝶的午后、将蝴蝶制作成标本...',
+    solved: false,
+    displayName: '童年记忆排序',
+    memoryCorridorPhase: {
+      phase: 2,
+      fragmentIds: ['clue_cor_2', 'clue_cor_3']
+    }
+  },
+  {
+    id: 'mech_cor_branch_1',
+    type: 'branch_choice',
+    answer: 'choice_study_art',
+    reward: 'unlock_corridor_phase_3',
+    hint: '站在人生的十字路口，你会如何选择？',
+    solved: false,
+    displayName: '青春的抉择',
+    branchChoiceId: 'branch_cor_1',
+    memoryCorridorPhase: {
+      phase: 3
+    }
+  },
+  {
+    id: 'mech_cor_memory_final',
+    type: 'memory_sort',
+    answer: [1, 2, 3, 4, 5, 6, 7, 8],
+    reward: 'unlock_corridor_final',
+    hint: '将所有记忆碎片按照时间顺序重新排列：童年的向日葵花田、追逐蝴蝶的午后、将蝴蝶制作成标本、收到大学录取通知书、收到艺术学院邀请函、爷爷的遗言、母亲的家书、琥珀的日记...',
+    solved: false,
+    displayName: '完整记忆拼图',
+    memoryCorridorPhase: {
+      phase: 4,
+      fragmentIds: ['clue_cor_1', 'clue_cor_2', 'clue_cor_3', 'clue_cor_4', 'clue_cor_5', 'clue_cor_6', 'clue_cor_7', 'clue_cor_8']
+    }
+  },
+  {
+    id: 'mech_cor_branch_final',
+    type: 'branch_choice',
+    answer: 'choice_remember_forever',
+    reward: 'unlock_ending_hall',
+    hint: '面对最后的抉择，你会选择什么？',
+    solved: false,
+    displayName: '最终的抉择',
+    branchChoiceId: 'branch_cor_2',
+    memoryCorridorPhase: {
+      phase: 4
+    }
+  },
+  {
+    id: 'mech_cor_ending',
+    type: 'password',
+    answer: '永恒',
+    reward: 'unlock_true_ending',
+    hint: '当所有记忆归位，当所有选择尘埃落定，答案就是...',
+    solved: false,
+    displayName: '结局之门'
   }
 ];

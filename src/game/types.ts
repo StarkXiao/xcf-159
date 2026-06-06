@@ -11,6 +11,9 @@ export interface Clue {
   isShared?: boolean;
   requiredClueFromOtherHall?: string;
   linkedClueId?: string;
+  branchChoiceId?: string;
+  isEndingClue?: boolean;
+  endingId?: string;
 }
 
 export interface Hotspot {
@@ -103,7 +106,7 @@ export interface AuthenticityReward {
 
 export interface Mechanism {
   id: string;
-  type: 'password' | 'sequence' | 'restoration' | 'linked' | 'authenticity';
+  type: 'password' | 'sequence' | 'restoration' | 'linked' | 'authenticity' | 'memory_sort' | 'branch_choice';
   answer: string | number[];
   reward: string;
   hint: string;
@@ -117,6 +120,11 @@ export interface Mechanism {
   linkedMechanismId?: string;
   linkedProgress?: number;
   authenticityRelicIds?: string[];
+  memoryCorridorPhase?: {
+    phase: number;
+    fragmentIds?: string[];
+  };
+  branchChoiceId?: string;
 }
 
 export interface Chapter {
@@ -136,6 +144,16 @@ export interface Chapter {
     combined: string;
   };
   isAuthenticity?: boolean;
+  isMemoryCorridor?: boolean;
+  memoryPhases?: {
+    phase: number;
+    name: string;
+    exhibitionId: string;
+    description: string;
+    requiredClues: string[];
+  }[];
+  branchChoices?: string[];
+  endings?: string[];
 }
 
 export interface GameSettings {
@@ -166,6 +184,7 @@ export interface AudioRecording {
   played: boolean;
   requiredClues?: string[];
   requiredMemoryComplete?: boolean;
+  endingId?: string;
 }
 
 export interface ArchiveEntry {
@@ -229,6 +248,54 @@ export interface RestorationState {
 }
 
 export type HallType = 'history' | 'art';
+
+export interface Ending {
+  id: string;
+  chapterId: string;
+  title: string;
+  description: string;
+  storyText: string;
+  type: 'good' | 'neutral' | 'bad' | 'true';
+  unlockConditions: {
+    requiredClues?: string[];
+    requiredChoices?: string[];
+    requiredMemoryComplete?: boolean;
+  };
+  unlocked: boolean;
+  achieved: boolean;
+  icon: string;
+  epilogueText: string;
+}
+
+export interface BranchChoice {
+  id: string;
+  chapterId: string;
+  text: string;
+  description: string;
+  choices: {
+    id: string;
+    text: string;
+    consequence: string;
+    leadsToEnding?: string;
+    unlocksClue?: string;
+    unlocksExhibition?: string;
+  }[];
+  selectedChoiceId: string | null;
+  madeAt: number | null;
+  requiredClues?: string[];
+  unlocked: boolean;
+}
+
+export interface MemoryCorridorState {
+  currentPhase: number;
+  completedPhases: number[];
+  unlockedEndings: string[];
+  achievedEndings: string[];
+  madeChoices: Record<string, string>;
+  fragmentSortingProgress: number;
+  isMemoryComplete: boolean;
+  currentEnding: string | null;
+}
 
 export interface DualHallState {
   activeHall: HallType;
@@ -371,4 +438,5 @@ export interface GameState {
   visitorQuests: VisitorQuestState;
   readingRoom: ReadingRoomState;
   authenticity: AuthenticityState;
+  memoryCorridor: MemoryCorridorState;
 }

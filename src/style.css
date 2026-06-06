@@ -13,15 +13,16 @@ html, body {
 }
 
 #app {
-  width: 100%;
-  height: 100%;
-  position: relative;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
 }
 
 #game-canvas {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   position: fixed;
   top: 0;
   left: 0;
@@ -94,15 +95,5 @@ html, body {
   
   .loading-icon {
     font-size: 48px;
-  }
-}
-
-@media screen and (orientation: landscape) {
-  #game-canvas {
-    max-width: 100vh * 0.563;
-    max-height: 100vh;
-    margin: 0 auto;
-    left: 50%;
-    transform: translateX(-50%);
   }
 }

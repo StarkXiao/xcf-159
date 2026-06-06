@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -8,6 +8,8 @@ import { VISITOR_QUESTS } from './data/visitorQuests';
 import { CHARACTERS } from './data/characters';
 import { TIMELINE_EVENTS } from './data/timelineEvents';
 import { AUTHENTICITY_RELICS, AUTHENTICITY_REWARDS } from './data/authenticity';
+import { ENDINGS } from './data/endings';
+import { BRANCH_CHOICES } from './data/branchChoices';
 import { eventBus } from './EventBus';
 
 class Store {
@@ -25,6 +27,8 @@ class Store {
   private timelineEvents: TimelineEvent[];
   private authenticityRelics: AuthenticityRelic[];
   private authenticityRewards: AuthenticityReward[];
+  private endings: Ending[];
+  private branchChoices: BranchChoice[];
   private chapterStartTime: number = Date.now();
 
   constructor() {
@@ -42,6 +46,8 @@ class Store {
     this.timelineEvents = JSON.parse(JSON.stringify(TIMELINE_EVENTS));
     this.authenticityRelics = JSON.parse(JSON.stringify(AUTHENTICITY_RELICS));
     this.authenticityRewards = JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS));
+    this.endings = JSON.parse(JSON.stringify(ENDINGS));
+    this.branchChoices = JSON.parse(JSON.stringify(BRANCH_CHOICES));
 
     const defaultArchive: ArchiveState = {
       unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],
@@ -107,6 +113,17 @@ class Store {
       rewards: JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS))
     };
 
+    const defaultMemoryCorridor: MemoryCorridorState = {
+      currentPhase: 1,
+      completedPhases: [],
+      unlockedEndings: [],
+      achievedEndings: [],
+      madeChoices: {},
+      fragmentSortingProgress: 0,
+      isMemoryComplete: false,
+      currentEnding: null
+    };
+
     this.state = savedState || {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -125,7 +142,8 @@ class Store {
       dualHall: defaultDualHall,
       visitorQuests: defaultVisitorQuests,
       readingRoom: defaultReadingRoom,
-      authenticity: defaultAuthenticity
+      authenticity: defaultAuthenticity,
+      memoryCorridor: defaultMemoryCorridor
     };
 
     if (!this.state.archive) {
@@ -154,6 +172,10 @@ class Store {
 
     if (!this.state.authenticity) {
       this.state.authenticity = defaultAuthenticity;
+    }
+
+    if (!this.state.memoryCorridor) {
+      this.state.memoryCorridor = defaultMemoryCorridor;
     }
 
     this.applyStateToData();
@@ -315,6 +337,23 @@ class Store {
         }
       });
     }
+
+    if (this.state.memoryCorridor) {
+      this.state.memoryCorridor.unlockedEndings.forEach(id => {
+        const ending = this.endings.find(e => e.id === id);
+        if (ending) ending.unlocked = true;
+      });
+      this.state.memoryCorridor.achievedEndings.forEach(id => {
+        const ending = this.endings.find(e => e.id === id);
+        if (ending) ending.achieved = true;
+      });
+      Object.keys(this.state.memoryCorridor.madeChoices).forEach(branchId => {
+        const branch = this.branchChoices.find(b => b.id === branchId);
+        if (branch) {
+          branch.selectedChoiceId = this.state.memoryCorridor!.madeChoices[branchId];
+        }
+      });
+    }
   }
 
   getState(): GameState {
@@ -377,6 +416,7 @@ class Store {
 
     this.checkAndUnlockRecordings(clueId);
     this.checkAndUnlockContent(clueId);
+    this.checkAndUnlockBranchChoices(clueId);
 
     this.updateQuestProgressOnClueCollect(clueId);
 
@@ -422,6 +462,31 @@ class Store {
 
     if (mech.reward === 'ending') {
       this.unlockFinalRecording();
+    }
+
+    if (mech.reward === 'unlock_corridor_phase_2') {
+      this.completeMemoryCorridorPhase(2);
+      this.unlockExhibition('exhibition_corridor_youth');
+      this.unlockChapterRecordings('chapter_6');
+    }
+
+    if (mech.reward === 'unlock_corridor_phase_3') {
+      this.completeMemoryCorridorPhase(3);
+      this.unlockExhibition('exhibition_corridor_present');
+    }
+
+    if (mech.reward === 'unlock_corridor_final') {
+      this.completeMemoryCorridorPhase(4);
+      this.setMemoryComplete(true);
+      this.unlockChapterCompleteRecording('chapter_6');
+    }
+
+    if (mech.reward === 'unlock_ending_hall') {
+      this.unlockExhibition('exhibition_corridor_ending');
+    }
+
+    if (mech.reward === 'unlock_true_ending') {
+      this.achieveEnding('ending_true');
     }
 
     eventBus.emit('mechanism:solve', { mechanismId, reward: mech.reward });
@@ -644,6 +709,8 @@ class Store {
     this.timelineEvents = JSON.parse(JSON.stringify(TIMELINE_EVENTS));
     this.authenticityRelics = JSON.parse(JSON.stringify(AUTHENTICITY_RELICS));
     this.authenticityRewards = JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS));
+    this.endings = JSON.parse(JSON.stringify(ENDINGS));
+    this.branchChoices = JSON.parse(JSON.stringify(BRANCH_CHOICES));
     this.chapterStartTime = Date.now();
     this.state = {
       currentChapter: 'chapter_1',
@@ -708,6 +775,16 @@ class Store {
         attempts: 0,
         maxAttempts: 3,
         rewards: JSON.parse(JSON.stringify(AUTHENTICITY_REWARDS))
+      },
+      memoryCorridor: {
+        currentPhase: 1,
+        completedPhases: [],
+        unlockedEndings: [],
+        achievedEndings: [],
+        madeChoices: {},
+        fragmentSortingProgress: 0,
+        isMemoryComplete: false,
+        currentEnding: null
       }
     };
     this.applyStateToData();
@@ -979,6 +1056,7 @@ class Store {
     this.updateHallProgress();
     this.checkAndUnlockRecordings(clueId);
     this.checkAndUnlockContent(clueId);
+    this.checkAndUnlockBranchChoices(clueId);
 
     const linkedClueId = clue.linkedClueId;
     if (linkedClueId && this.state.collectedClues.includes(linkedClueId)) {
@@ -1954,6 +2032,341 @@ class Store {
     }
 
     eventBus.emit('authenticity:reset');
+    this.saveToStorage();
+  }
+
+  getMemoryCorridorState(): MemoryCorridorState {
+    return { ...this.state.memoryCorridor };
+  }
+
+  getEndings(): Ending[] {
+    return this.endings.map(e => ({ ...e }));
+  }
+
+  getEndingById(id: string): Ending | undefined {
+    return this.endings.find(e => e.id === id);
+  }
+
+  getEndingsByChapter(chapterId: string): Ending[] {
+    return this.endings.filter(e => e.chapterId === chapterId).map(e => ({ ...e }));
+  }
+
+  getUnlockedEndings(): Ending[] {
+    return this.endings.filter(e => e.unlocked).map(e => ({ ...e }));
+  }
+
+  getAchievedEndings(): Ending[] {
+    return this.endings.filter(e => e.achieved).map(e => ({ ...e }));
+  }
+
+  unlockEnding(endingId: string): boolean {
+    if (this.state.memoryCorridor.unlockedEndings.includes(endingId)) return false;
+
+    const ending = this.endings.find(e => e.id === endingId);
+    if (!ending) return false;
+
+    ending.unlocked = true;
+    this.state.memoryCorridor.unlockedEndings.push(endingId);
+
+    const recording = this.recordings.find(r => r.endingId === endingId);
+    if (recording) {
+      this.unlockRecording(recording.id);
+    }
+
+    eventBus.emit('memorycorridor:ending-unlocked', { endingId });
+    this.saveToStorage();
+    return true;
+  }
+
+  achieveEnding(endingId: string): boolean {
+    if (this.state.memoryCorridor.achievedEndings.includes(endingId)) return false;
+
+    const ending = this.endings.find(e => e.id === endingId);
+    if (!ending) return false;
+
+    ending.achieved = true;
+    this.state.memoryCorridor.achievedEndings.push(endingId);
+    this.state.memoryCorridor.currentEnding = endingId;
+
+    if (!this.state.memoryCorridor.unlockedEndings.includes(endingId)) {
+      this.unlockEnding(endingId);
+    }
+
+    const recording = this.recordings.find(r => r.endingId === endingId);
+    if (recording) {
+      this.markRecordingAsPlayed(recording.id);
+    }
+
+    eventBus.emit('memorycorridor:ending-achieved', { endingId, ending });
+    this.saveToStorage();
+    return true;
+  }
+
+  checkEndingUnlockConditions(endingId: string): boolean {
+    const ending = this.endings.find(e => e.id === endingId);
+    if (!ending) return false;
+
+    const { requiredClues, requiredChoices, requiredMemoryComplete } = ending.unlockConditions;
+
+    if (requiredMemoryComplete && !this.state.memoryCorridor.isMemoryComplete) {
+      return false;
+    }
+
+    if (requiredClues && requiredClues.length > 0) {
+      const allCluesCollected = requiredClues.every(id =>
+        this.state.collectedClues.includes(id)
+      );
+      if (!allCluesCollected) return false;
+    }
+
+    if (requiredChoices && requiredChoices.length > 0) {
+      const allChoicesMade = requiredChoices.every(choiceId => {
+        const madeChoiceIds = Object.values(this.state.memoryCorridor.madeChoices);
+        return madeChoiceIds.includes(choiceId);
+      });
+      if (!allChoicesMade) return false;
+    }
+
+    return true;
+  }
+
+  determineEnding(): Ending | null {
+    const chapterEndings = this.endings.filter(e => e.chapterId === 'chapter_6');
+    
+    for (const ending of chapterEndings) {
+      if (this.checkEndingUnlockConditions(ending.id)) {
+        return { ...ending };
+      }
+    }
+    
+    return null;
+  }
+
+  getBranchChoices(): BranchChoice[] {
+    return this.branchChoices.map(b => ({ ...b }));
+  }
+
+  getBranchChoiceById(id: string): BranchChoice | undefined {
+    return this.branchChoices.find(b => b.id === id);
+  }
+
+  getBranchChoicesByChapter(chapterId: string): BranchChoice[] {
+    return this.branchChoices.filter(b => b.chapterId === chapterId).map(b => ({ ...b }));
+  }
+
+  getUnlockedBranchChoices(): BranchChoice[] {
+    return this.branchChoices.filter(b => b.unlocked).map(b => ({ ...b }));
+  }
+
+  makeChoice(branchId: string, choiceId: string): { success: boolean; consequence: string; endingId?: string; unlocksClue?: string; unlocksExhibition?: string } {
+    const branch = this.branchChoices.find(b => b.id === branchId);
+    if (!branch || branch.selectedChoiceId !== null) {
+      return { success: false, consequence: '' };
+    }
+
+    if (branch.requiredClues && branch.requiredClues.length > 0) {
+      const allCluesCollected = branch.requiredClues.every(id =>
+        this.state.collectedClues.includes(id)
+      );
+      if (!allCluesCollected) {
+        return { success: false, consequence: '' };
+      }
+    }
+
+    const choice = branch.choices.find(c => c.id === choiceId);
+    if (!choice) {
+      return { success: false, consequence: '' };
+    }
+
+    branch.selectedChoiceId = choiceId;
+    branch.madeAt = Date.now();
+    this.state.memoryCorridor.madeChoices[branchId] = choiceId;
+
+    if (choice.unlocksClue) {
+      this.collectClue(choice.unlocksClue);
+    }
+
+    if (choice.unlocksExhibition) {
+      this.unlockExhibition(choice.unlocksExhibition);
+    }
+
+    if (choice.leadsToEnding) {
+      this.achieveEnding(choice.leadsToEnding);
+    }
+
+    eventBus.emit('memorycorridor:choice-made', {
+      branchId,
+      choiceId,
+      choice,
+      consequence: choice.consequence
+    });
+
+    this.saveToStorage();
+
+    return {
+      success: true,
+      consequence: choice.consequence,
+      endingId: choice.leadsToEnding,
+      unlocksClue: choice.unlocksClue,
+      unlocksExhibition: choice.unlocksExhibition
+    };
+  }
+
+  checkMemoryCorridorPhaseUnlock(phase: number): boolean {
+    const chapter = this.chapters.find(c => c.id === 'chapter_6');
+    if (!chapter || !chapter.memoryPhases) return false;
+
+    const phaseData = chapter.memoryPhases.find(p => p.phase === phase);
+    if (!phaseData) return false;
+
+    const allCluesCollected = phaseData.requiredClues.every(id =>
+      this.state.collectedClues.includes(id)
+    );
+
+    return allCluesCollected;
+  }
+
+  completeMemoryCorridorPhase(phase: number): boolean {
+    if (this.state.memoryCorridor.completedPhases.includes(phase)) return false;
+
+    this.state.memoryCorridor.completedPhases.push(phase);
+    this.state.memoryCorridor.currentPhase = Math.max(phase, this.state.memoryCorridor.currentPhase);
+
+    const chapter = this.chapters.find(c => c.id === 'chapter_6');
+    if (chapter?.memoryPhases) {
+      const phaseData = chapter.memoryPhases.find(p => p.phase === phase);
+      if (phaseData) {
+        this.unlockExhibition(phaseData.exhibitionId);
+      }
+    }
+
+    eventBus.emit('memorycorridor:phase-complete', { phase });
+    this.saveToStorage();
+    return true;
+  }
+
+  checkMemorySortOrder(fragmentIds: string[]): boolean {
+    const fragments = fragmentIds.map(id => this.getClueById(id)).filter(Boolean) as Clue[];
+    
+    if (fragments.length !== fragmentIds.length) return false;
+
+    for (let i = 0; i < fragments.length; i++) {
+      if (!fragments[i].memoryOrder || fragments[i].memoryOrder !== i + 1) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  checkMechanismMemorySort(mechanismId: string, fragmentIds: string[]): boolean {
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech || mech.type !== 'memory_sort') return false;
+
+    const expectedFragmentIds = mech.memoryCorridorPhase?.fragmentIds || [];
+    
+    if (expectedFragmentIds.length !== fragmentIds.length) return false;
+
+    const sortedFragments = fragmentIds
+      .map(id => this.getClueById(id))
+      .filter(Boolean) as Clue[];
+
+    if (sortedFragments.length !== expectedFragmentIds.length) return false;
+
+    for (let i = 0; i < sortedFragments.length; i++) {
+      if (sortedFragments[i].id !== expectedFragmentIds[i]) return false;
+      if (sortedFragments[i].memoryOrder !== i + 1) return false;
+    }
+
+    const progress = Math.round((sortedFragments.length / expectedFragmentIds.length) * 100);
+    this.state.memoryCorridor.fragmentSortingProgress = Math.max(
+      this.state.memoryCorridor.fragmentSortingProgress,
+      progress
+    );
+
+    eventBus.emit('memorycorridor:sort-progress', { mechanismId, progress });
+    this.saveToStorage();
+
+    return true;
+  }
+
+  setMemoryComplete(complete: boolean): void {
+    this.state.memoryCorridor.isMemoryComplete = complete;
+    
+    if (complete) {
+      eventBus.emit('memorycorridor:memory-complete');
+      
+      this.endings.forEach(ending => {
+        if (this.checkEndingUnlockConditions(ending.id)) {
+          this.unlockEnding(ending.id);
+        }
+      });
+    }
+
+    this.saveToStorage();
+  }
+
+  getMemoryFragmentSortingProgress(): number {
+    return this.state.memoryCorridor.fragmentSortingProgress;
+  }
+
+  isMemoryComplete(): boolean {
+    return this.state.memoryCorridor.isMemoryComplete;
+  }
+
+  getCurrentEnding(): Ending | null {
+    const endingId = this.state.memoryCorridor.currentEnding;
+    if (!endingId) return null;
+    return this.getEndingById(endingId) || null;
+  }
+
+  startMemoryCorridor(): boolean {
+    if (this.state.currentChapter === 'chapter_6') return false;
+
+    this.unlockExhibition('exhibition_corridor_entrance');
+    this.state.currentChapter = 'chapter_6';
+    this.state.currentExhibition = 'exhibition_corridor_entrance';
+    this.state.memoryCorridor.currentPhase = 1;
+
+    const branchChoices = this.branchChoices.filter(b => b.chapterId === 'chapter_6');
+    branchChoices.forEach(branch => {
+      if (!branch.requiredClues || branch.requiredClues.length === 0) {
+        branch.unlocked = true;
+      } else {
+        const allCluesCollected = branch.requiredClues.every(id =>
+          this.state.collectedClues.includes(id)
+        );
+        if (allCluesCollected) {
+          branch.unlocked = true;
+        }
+      }
+    });
+
+    this.unlockChapterRecordings('chapter_6');
+
+    eventBus.emit('memorycorridor:start');
+    eventBus.emit('chapter:enter', { chapterId: 'chapter_6' });
+    eventBus.emit('exhibition:enter', { exhibitionId: 'exhibition_corridor_entrance' });
+
+    this.saveToStorage();
+    return true;
+  }
+
+  checkAndUnlockBranchChoices(clueId: string): void {
+    this.branchChoices.forEach(branch => {
+      if (branch.unlocked) return;
+      if (!branch.requiredClues?.includes(clueId)) return;
+
+      const allCluesCollected = branch.requiredClues.every(id =>
+        this.state.collectedClues.includes(id)
+      );
+
+      if (allCluesCollected) {
+        branch.unlocked = true;
+        eventBus.emit('memorycorridor:branch-unlocked', { branchId: branch.id });
+      }
+    });
+
     this.saveToStorage();
   }
 }

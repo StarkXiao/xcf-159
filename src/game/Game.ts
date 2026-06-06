@@ -104,7 +104,7 @@ export class Game {
 
     const scaleX = windowWidth / designWidth;
     const scaleY = windowHeight / designHeight;
-    this.scaleFactor = Math.min(scaleX, scaleY);
+    this.scaleFactor = Math.max(scaleX, scaleY);
 
     const newWidth = designWidth * this.scaleFactor;
     const newHeight = designHeight * this.scaleFactor;
