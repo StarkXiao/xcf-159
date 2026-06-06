@@ -1,10 +1,12 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
 import { NIGHT_EVENTS } from './data/nightEvents';
 import { RELICS, RESTORATION_MATERIALS } from './data/restoration';
 import { VISITOR_QUESTS } from './data/visitorQuests';
+import { CHARACTERS } from './data/characters';
+import { TIMELINE_EVENTS } from './data/timelineEvents';
 import { eventBus } from './EventBus';
 
 class Store {
@@ -18,6 +20,8 @@ class Store {
   private relics: Relic[];
   private restorationMaterials: RestorationMaterial[];
   private visitorQuests: VisitorQuest[];
+  private characters: Character[];
+  private timelineEvents: TimelineEvent[];
   private chapterStartTime: number = Date.now();
 
   constructor() {
@@ -31,6 +35,8 @@ class Store {
     this.relics = JSON.parse(JSON.stringify(RELICS));
     this.restorationMaterials = JSON.parse(JSON.stringify(RESTORATION_MATERIALS));
     this.visitorQuests = JSON.parse(JSON.stringify(VISITOR_QUESTS));
+    this.characters = JSON.parse(JSON.stringify(CHARACTERS));
+    this.timelineEvents = JSON.parse(JSON.stringify(TIMELINE_EVENTS));
 
     const defaultArchive: ArchiveState = {
       unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],
@@ -77,6 +83,15 @@ class Store {
       questHistory: []
     };
 
+    const defaultReadingRoom: ReadingRoomState = {
+      unlockedCharacters: ['char_amber'],
+      unlockedEvents: ['event_amber_birth'],
+      viewedCharacters: [],
+      viewedEvents: [],
+      searchHistory: [],
+      favoriteClues: []
+    };
+
     this.state = savedState || {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -93,7 +108,8 @@ class Store {
       nightPatrol: defaultNightPatrol,
       restoration: defaultRestoration,
       dualHall: defaultDualHall,
-      visitorQuests: defaultVisitorQuests
+      visitorQuests: defaultVisitorQuests,
+      readingRoom: defaultReadingRoom
     };
 
     if (!this.state.archive) {
@@ -114,6 +130,10 @@ class Store {
 
     if (!this.state.visitorQuests) {
       this.state.visitorQuests = defaultVisitorQuests;
+    }
+
+    if (!this.state.readingRoom) {
+      this.state.readingRoom = defaultReadingRoom;
     }
 
     this.applyStateToData();
@@ -239,6 +259,17 @@ class Store {
       });
       this.updateQuestStatuses();
     }
+
+    if (this.state.readingRoom) {
+      this.state.readingRoom.unlockedCharacters.forEach(id => {
+        const character = this.characters.find(c => c.id === id);
+        if (character) character.unlocked = true;
+      });
+      this.state.readingRoom.unlockedEvents.forEach(id => {
+        const event = this.timelineEvents.find(e => e.id === id);
+        if (event) event.unlocked = true;
+      });
+    }
   }
 
   getState(): GameState {
@@ -300,6 +331,7 @@ class Store {
     this.state.collectedClues.push(clueId);
 
     this.checkAndUnlockRecordings(clueId);
+    this.checkAndUnlockContent(clueId);
 
     this.updateQuestProgressOnClueCollect(clueId);
 
@@ -556,6 +588,8 @@ class Store {
     this.relics = JSON.parse(JSON.stringify(RELICS));
     this.restorationMaterials = JSON.parse(JSON.stringify(RESTORATION_MATERIALS));
     this.visitorQuests = JSON.parse(JSON.stringify(VISITOR_QUESTS));
+    this.characters = JSON.parse(JSON.stringify(CHARACTERS));
+    this.timelineEvents = JSON.parse(JSON.stringify(TIMELINE_EVENTS));
     this.chapterStartTime = Date.now();
     this.state = {
       currentChapter: 'chapter_1',
@@ -603,6 +637,14 @@ class Store {
         totalScore: 0,
         currentChapterScore: 0,
         questHistory: []
+      },
+      readingRoom: {
+        unlockedCharacters: ['char_amber'],
+        unlockedEvents: ['event_amber_birth'],
+        viewedCharacters: [],
+        viewedEvents: [],
+        searchHistory: [],
+        favoriteClues: []
       }
     };
     this.applyStateToData();
@@ -1402,6 +1444,216 @@ class Store {
       return this.visitorQuests.filter(q => q.chapterId === chapterId).length;
     }
     return this.visitorQuests.length;
+  }
+
+  getCharacters(): Character[] {
+    return this.characters.map(c => ({ ...c }));
+  }
+
+  getCharacterById(id: string): Character | undefined {
+    return this.characters.find(c => c.id === id);
+  }
+
+  getUnlockedCharacters(): Character[] {
+    return this.characters.filter(c => c.unlocked).map(c => ({ ...c }));
+  }
+
+  getCharactersByChapter(chapterId: string): Character[] {
+    return this.characters.filter(c => c.chapterId === chapterId).map(c => ({ ...c }));
+  }
+
+  unlockCharacter(characterId: string): boolean {
+    if (this.state.readingRoom.unlockedCharacters.includes(characterId)) return false;
+
+    const character = this.characters.find(c => c.id === characterId);
+    if (!character) return false;
+
+    character.unlocked = true;
+    this.state.readingRoom.unlockedCharacters.push(characterId);
+
+    eventBus.emit('readingroom:character-unlock', { characterId });
+    this.saveToStorage();
+    return true;
+  }
+
+  markCharacterAsViewed(characterId: string): boolean {
+    if (this.state.readingRoom.viewedCharacters.includes(characterId)) return false;
+    if (!this.state.readingRoom.unlockedCharacters.includes(characterId)) return false;
+
+    this.state.readingRoom.viewedCharacters.push(characterId);
+    this.saveToStorage();
+    return true;
+  }
+
+  getTimelineEvents(): TimelineEvent[] {
+    return this.timelineEvents.map(e => ({ ...e }));
+  }
+
+  getTimelineEventById(id: string): TimelineEvent | undefined {
+    return this.timelineEvents.find(e => e.id === id);
+  }
+
+  getUnlockedTimelineEvents(): TimelineEvent[] {
+    return this.timelineEvents.filter(e => e.unlocked).sort((a, b) => a.order - b.order);
+  }
+
+  getTimelineEventsByChapter(chapterId: string): TimelineEvent[] {
+    return this.timelineEvents.filter(e => e.chapterId === chapterId).sort((a, b) => a.order - b.order);
+  }
+
+  unlockTimelineEvent(eventId: string): boolean {
+    if (this.state.readingRoom.unlockedEvents.includes(eventId)) return false;
+
+    const event = this.timelineEvents.find(e => e.id === eventId);
+    if (!event) return false;
+
+    event.unlocked = true;
+    this.state.readingRoom.unlockedEvents.push(eventId);
+
+    eventBus.emit('readingroom:event-unlock', { eventId });
+    this.saveToStorage();
+    return true;
+  }
+
+  markEventAsViewed(eventId: string): boolean {
+    if (this.state.readingRoom.viewedEvents.includes(eventId)) return false;
+    if (!this.state.readingRoom.unlockedEvents.includes(eventId)) return false;
+
+    this.state.readingRoom.viewedEvents.push(eventId);
+    this.saveToStorage();
+    return true;
+  }
+
+  getReadingRoomState(): ReadingRoomState {
+    return { ...this.state.readingRoom };
+  }
+
+  addToSearchHistory(query: string): void {
+    if (!query.trim()) return;
+    const history = this.state.readingRoom.searchHistory.filter(h => h !== query);
+    history.unshift(query);
+    this.state.readingRoom.searchHistory = history.slice(0, 20);
+    this.saveToStorage();
+  }
+
+  clearSearchHistory(): void {
+    this.state.readingRoom.searchHistory = [];
+    this.saveToStorage();
+  }
+
+  toggleFavoriteClue(clueId: string): boolean {
+    const index = this.state.readingRoom.favoriteClues.indexOf(clueId);
+    if (index >= 0) {
+      this.state.readingRoom.favoriteClues.splice(index, 1);
+      eventBus.emit('readingroom:favorite-removed', { clueId });
+      this.saveToStorage();
+      return false;
+    } else {
+      this.state.readingRoom.favoriteClues.push(clueId);
+      eventBus.emit('readingroom:favorite-added', { clueId });
+      this.saveToStorage();
+      return true;
+    }
+  }
+
+  isFavoriteClue(clueId: string): boolean {
+    return this.state.readingRoom.favoriteClues.includes(clueId);
+  }
+
+  getFavoriteClues(): Clue[] {
+    return this.clues.filter(c => this.state.readingRoom.favoriteClues.includes(c.id)).map(c => ({ ...c }));
+  }
+
+  searchClues(query: string): Clue[] {
+    if (!query.trim()) return [];
+    const lowerQuery = query.toLowerCase();
+    return this.clues.filter(c =>
+      c.collected && (
+        c.name.toLowerCase().includes(lowerQuery) ||
+        c.description.toLowerCase().includes(lowerQuery) ||
+        c.id.toLowerCase().includes(lowerQuery)
+      )
+    );
+  }
+
+  searchCharacters(query: string): Character[] {
+    if (!query.trim()) return [];
+    const lowerQuery = query.toLowerCase();
+    return this.characters.filter(c =>
+      c.unlocked && (
+        c.name.toLowerCase().includes(lowerQuery) ||
+        c.description.toLowerCase().includes(lowerQuery) ||
+        c.role.toLowerCase().includes(lowerQuery)
+      )
+    );
+  }
+
+  searchTimelineEvents(query: string): TimelineEvent[] {
+    if (!query.trim()) return [];
+    const lowerQuery = query.toLowerCase();
+    return this.timelineEvents.filter(e =>
+      e.unlocked && (
+        e.title.toLowerCase().includes(lowerQuery) ||
+        e.description.toLowerCase().includes(lowerQuery) ||
+        e.date.toLowerCase().includes(lowerQuery)
+      )
+    ).sort((a, b) => a.order - b.order);
+  }
+
+  checkAndUnlockContent(clueId: string): void {
+    const clue = this.getClueById(clueId);
+    if (!clue) return;
+
+    this.characters.forEach(character => {
+      if (!character.unlocked && character.relatedClues.includes(clueId)) {
+        const allRequiredCluesCollected = character.relatedClues.every(
+          cid => this.state.collectedClues.includes(cid)
+        );
+        if (allRequiredCluesCollected) {
+          this.unlockCharacter(character.id);
+        }
+      }
+    });
+
+    this.timelineEvents.forEach(event => {
+      if (!event.unlocked && event.relatedClueIds.includes(clueId)) {
+        const allRequiredCluesCollected = event.relatedClueIds.every(
+          cid => this.state.collectedClues.includes(cid)
+        );
+        if (allRequiredCluesCollected) {
+          this.unlockTimelineEvent(event.id);
+        }
+      }
+    });
+  }
+
+  isClueCollected(clueId: string): boolean {
+    return this.state.collectedClues.includes(clueId);
+  }
+
+  isChapterCompleted(chapterId: string): boolean {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    return chapter?.completed || false;
+  }
+
+  getCluesByChapter(chapterId: string): Clue[] {
+    return this.clues.filter(c => c.chapterId === chapterId).map(c => ({ ...c }));
+  }
+
+  getCollectedCluesByChapter(chapterId: string): Clue[] {
+    return this.clues.filter(
+      c => c.chapterId === chapterId && this.state.collectedClues.includes(c.id)
+    ).map(c => ({ ...c }));
+  }
+
+  getUnreadCount(): number {
+    const newCharacters = this.state.readingRoom.unlockedCharacters.filter(
+      id => !this.state.readingRoom.viewedCharacters.includes(id)
+    ).length;
+    const newEvents = this.state.readingRoom.unlockedEvents.filter(
+      id => !this.state.readingRoom.viewedEvents.includes(id)
+    ).length;
+    return newCharacters + newEvents;
   }
 }
 

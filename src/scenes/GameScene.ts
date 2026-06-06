@@ -13,6 +13,7 @@ import { NightPatrolModule } from '../modules/NightPatrolModule';
 import { RestorationModule } from '../modules/RestorationModule';
 import { DualHallModule } from '../modules/DualHallModule';
 import { VisitorQuestModule } from '../modules/VisitorQuestModule';
+import { ArchiveReadingRoomModule } from '../modules/ArchiveReadingRoomModule';
 import { audioModule } from '../modules/AudioModule';
 
 export class GameScene extends Scene {
@@ -26,6 +27,7 @@ export class GameScene extends Scene {
   private restorationModule: RestorationModule | null = null;
   private dualHallModule: DualHallModule | null = null;
   private visitorQuestModule: VisitorQuestModule | null = null;
+  private archiveReadingRoomModule: ArchiveReadingRoomModule | null = null;
 
   private transitionOverlay: PIXI.Graphics | null = null;
 
@@ -44,6 +46,7 @@ export class GameScene extends Scene {
     this.restorationModule = new RestorationModule(this);
     this.dualHallModule = new DualHallModule(this);
     this.visitorQuestModule = new VisitorQuestModule(this);
+    this.archiveReadingRoomModule = new ArchiveReadingRoomModule(this);
 
     this.createParticles(25);
 
@@ -153,6 +156,9 @@ export class GameScene extends Scene {
     if (this.visitorQuestModule) {
       this.visitorQuestModule.update(delta);
     }
+    if (this.archiveReadingRoomModule) {
+      this.archiveReadingRoomModule.update(delta);
+    }
   }
 
   destroy(): void {
@@ -171,6 +177,7 @@ export class GameScene extends Scene {
     if (this.restorationModule) this.restorationModule.destroy();
     if (this.dualHallModule) this.dualHallModule.destroy();
     if (this.visitorQuestModule) this.visitorQuestModule.destroy();
+    if (this.archiveReadingRoomModule) this.archiveReadingRoomModule.destroy();
     if (this.transitionOverlay) this.transitionOverlay.destroy();
   }
 }

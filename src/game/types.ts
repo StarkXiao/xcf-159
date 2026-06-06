@@ -266,6 +266,48 @@ export interface QuestHistoryEntry {
   itemsDelivered?: QuestItem[];
 }
 
+export interface Character {
+  id: string;
+  name: string;
+  avatar: string;
+  description: string;
+  role: string;
+  relationships: CharacterRelationship[];
+  chapterId: string;
+  unlocked: boolean;
+  relatedClues: string[];
+  relatedEvents: string[];
+}
+
+export interface CharacterRelationship {
+  targetId: string;
+  relationshipType: 'family' | 'friend' | 'teacher' | 'enemy' | 'mysterious';
+  description: string;
+}
+
+export interface TimelineEvent {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  chapterId: string;
+  order: number;
+  type: 'story' | 'clue' | 'mechanism' | 'character' | 'important';
+  relatedClueIds: string[];
+  relatedCharacterIds: string[];
+  unlocked: boolean;
+  image?: string;
+}
+
+export interface ReadingRoomState {
+  unlockedCharacters: string[];
+  unlockedEvents: string[];
+  viewedCharacters: string[];
+  viewedEvents: string[];
+  searchHistory: string[];
+  favoriteClues: string[];
+}
+
 export interface GameState {
   currentChapter: string;
   currentExhibition: string;
@@ -278,4 +320,5 @@ export interface GameState {
   restoration: RestorationState;
   dualHall: DualHallState;
   visitorQuests: VisitorQuestState;
+  readingRoom: ReadingRoomState;
 }
