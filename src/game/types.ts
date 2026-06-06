@@ -7,6 +7,10 @@ export interface Clue {
   isMemory: boolean;
   memoryOrder?: number;
   collected: boolean;
+  hallOrigin?: HallType;
+  isShared?: boolean;
+  requiredClueFromOtherHall?: string;
+  linkedClueId?: string;
 }
 
 export interface Hotspot {
@@ -28,6 +32,9 @@ export interface Exhibition {
   hotspots: Hotspot[];
   unlocked: boolean;
   description: string;
+  hallType?: HallType;
+  linkedExhibitionId?: string;
+  phase?: number;
 }
 
 export interface RestorationMaterial {
@@ -49,13 +56,19 @@ export interface RestorationStep {
 
 export interface Mechanism {
   id: string;
-  type: 'password' | 'sequence' | 'restoration';
+  type: 'password' | 'sequence' | 'restoration' | 'linked';
   answer: string | number[];
   reward: string;
   hint: string;
   solved: boolean;
   displayName: string;
   relicId?: string;
+  hallOrigin?: HallType;
+  isLinked?: boolean;
+  requiredHistoryClues?: string[];
+  requiredArtClues?: string[];
+  linkedMechanismId?: string;
+  linkedProgress?: number;
 }
 
 export interface Chapter {
@@ -66,6 +79,14 @@ export interface Chapter {
   requiredClues: string[];
   storyText: string;
   completed: boolean;
+  isDualHall?: boolean;
+  historyExhibitions?: string[];
+  artExhibitions?: string[];
+  dualHallStoryText?: {
+    history: string;
+    art: string;
+    combined: string;
+  };
 }
 
 export interface GameSettings {
@@ -158,6 +179,18 @@ export interface RestorationState {
   currentRestoration: string | null;
 }
 
+export type HallType = 'history' | 'art';
+
+export interface DualHallState {
+  activeHall: HallType;
+  historyProgress: number;
+  artProgress: number;
+  sharedClues: string[];
+  unlockedHalls: HallType[];
+  linkedMechanismProgress: Record<string, number>;
+  currentInvestigationPhase: number;
+}
+
 export interface GameState {
   currentChapter: string;
   currentExhibition: string;
@@ -168,4 +201,5 @@ export interface GameState {
   archive: ArchiveState;
   nightPatrol: NightPatrolState;
   restoration: RestorationState;
+  dualHall: DualHallState;
 }

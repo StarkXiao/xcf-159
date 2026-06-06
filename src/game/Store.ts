@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -51,6 +51,16 @@ class Store {
       currentRestoration: null
     };
 
+    const defaultDualHall: DualHallState = {
+      activeHall: 'history',
+      historyProgress: 0,
+      artProgress: 0,
+      sharedClues: [],
+      unlockedHalls: [],
+      linkedMechanismProgress: {},
+      currentInvestigationPhase: 1
+    };
+
     this.state = savedState || {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -65,7 +75,8 @@ class Store {
       },
       archive: defaultArchive,
       nightPatrol: defaultNightPatrol,
-      restoration: defaultRestoration
+      restoration: defaultRestoration,
+      dualHall: defaultDualHall
     };
 
     if (!this.state.archive) {
@@ -78,6 +89,10 @@ class Store {
 
     if (!this.state.restoration) {
       this.state.restoration = defaultRestoration;
+    }
+
+    if (!this.state.dualHall) {
+      this.state.dualHall = defaultDualHall;
     }
 
     this.applyStateToData();
@@ -157,6 +172,19 @@ class Store {
       this.state.restoration.restoredRelics.forEach(id => {
         const relic = this.relics.find(r => r.id === id);
         if (relic) relic.restored = true;
+      });
+    }
+
+    if (this.state.dualHall) {
+      this.state.dualHall.sharedClues.forEach(id => {
+        const clue = this.clues.find(c => c.id === id);
+        if (clue) clue.collected = true;
+      });
+      Object.keys(this.state.dualHall.linkedMechanismProgress).forEach(mechId => {
+        const mech = this.mechanisms.find(m => m.id === mechId);
+        if (mech) {
+          mech.linkedProgress = this.state.dualHall.linkedMechanismProgress[mechId];
+        }
       });
     }
   }
@@ -499,6 +527,15 @@ class Store {
         collectedMaterials: [],
         restoredRelics: [],
         currentRestoration: null
+      },
+      dualHall: {
+        activeHall: 'history',
+        historyProgress: 0,
+        artProgress: 0,
+        sharedClues: [],
+        unlockedHalls: [],
+        linkedMechanismProgress: {},
+        currentInvestigationPhase: 1
       }
     };
     this.applyStateToData();
@@ -704,6 +741,263 @@ class Store {
   setCurrentRestoration(relicId: string | null): void {
     this.state.restoration.currentRestoration = relicId;
     this.saveToStorage();
+  }
+
+  getDualHallState(): DualHallState {
+    return { ...this.state.dualHall };
+  }
+
+  switchHall(hallType: HallType): boolean {
+    if (!this.state.dualHall.unlockedHalls.includes(hallType)) {
+      return false;
+    }
+    this.state.dualHall.activeHall = hallType;
+    eventBus.emit('dualhall:switch', { hallType });
+    this.saveToStorage();
+    return true;
+  }
+
+  unlockHall(hallType: HallType): boolean {
+    if (this.state.dualHall.unlockedHalls.includes(hallType)) {
+      return false;
+    }
+    this.state.dualHall.unlockedHalls.push(hallType);
+    eventBus.emit('dualhall:unlock', { hallType });
+    this.saveToStorage();
+    return true;
+  }
+
+  canCollectClue(clueId: string): boolean {
+    const clue = this.clues.find(c => c.id === clueId);
+    if (!clue) return false;
+    if (this.state.collectedClues.includes(clueId)) return false;
+
+    if (clue.isShared && clue.requiredClueFromOtherHall) {
+      return this.state.collectedClues.includes(clue.requiredClueFromOtherHall);
+    }
+    return true;
+  }
+
+  checkSharedClueUnlock(clueId: string): string | null {
+    const clue = this.clues.find(c => c.id === clueId);
+    if (!clue || !clue.isShared || !clue.linkedClueId) return null;
+
+    if (this.state.collectedClues.includes(clue.linkedClueId)) {
+      return clue.linkedClueId;
+    }
+    return null;
+  }
+
+  collectDualHallClue(clueId: string): boolean {
+    if (!this.canCollectClue(clueId)) return false;
+
+    const clue = this.clues.find(c => c.id === clueId);
+    if (!clue) return false;
+
+    clue.collected = true;
+    this.state.collectedClues.push(clueId);
+
+    if (clue.isShared) {
+      if (!this.state.dualHall.sharedClues.includes(clueId)) {
+        this.state.dualHall.sharedClues.push(clueId);
+      }
+      eventBus.emit('dualhall:shared-clue-collect', { clueId, hallOrigin: clue.hallOrigin });
+    }
+
+    this.updateHallProgress();
+    this.checkAndUnlockRecordings(clueId);
+
+    const linkedClueId = clue.linkedClueId;
+    if (linkedClueId && this.state.collectedClues.includes(linkedClueId)) {
+      const sharedClue = this.clues.find(c =>
+        c.linkedClueId === clueId || c.linkedClueId === linkedClueId
+      );
+      if (sharedClue && sharedClue.requiredClueFromOtherHall) {
+        this.collectClue(sharedClue.id);
+        eventBus.emit('dualhall:cross-evidence-complete', {
+          clue1: clueId,
+          clue2: linkedClueId,
+          unlockedSharedClue: sharedClue.id
+        });
+      }
+    }
+
+    this.mechanisms.filter(m => m.isLinked).forEach(mech => {
+      this.updateLinkedMechanismProgress(mech.id);
+    });
+
+    const currentChapter = this.getCurrentChapter();
+    if (currentChapter) {
+      const allCollected = currentChapter.requiredClues.every(id =>
+        this.state.collectedClues.includes(id)
+      );
+      if (allCollected && !currentChapter.completed) {
+        currentChapter.completed = true;
+        eventBus.emit('chapter:complete', { chapterId: currentChapter.id });
+      }
+    }
+
+    eventBus.emit('clue:collect', { clueId });
+    this.saveToStorage();
+    return true;
+  }
+
+  private updateHallProgress(): void {
+    const chapter = this.chapters.find(c => c.isDualHall);
+    if (!chapter || !chapter.historyExhibitions || !chapter.artExhibitions) return;
+
+    const historyClues = this.clues.filter(c => c.hallOrigin === 'history' && c.collected);
+    const artClues = this.clues.filter(c => c.hallOrigin === 'art' && c.collected);
+
+    const totalHistoryClues = this.clues.filter(c => c.hallOrigin === 'history').length;
+    const totalArtClues = this.clues.filter(c => c.hallOrigin === 'art').length;
+
+    this.state.dualHall.historyProgress = totalHistoryClues > 0
+      ? Math.round((historyClues.length / totalHistoryClues) * 100)
+      : 0;
+    this.state.dualHall.artProgress = totalArtClues > 0
+      ? Math.round((artClues.length / totalArtClues) * 100)
+      : 0;
+
+    eventBus.emit('dualhall:progress-update', {
+      historyProgress: this.state.dualHall.historyProgress,
+      artProgress: this.state.dualHall.artProgress
+    });
+  }
+
+  getLinkedMechanismProgress(mechanismId: string): number {
+    return this.state.dualHall.linkedMechanismProgress[mechanismId] || 0;
+  }
+
+  updateLinkedMechanismProgress(mechanismId: string): number {
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech || !mech.isLinked) return 0;
+
+    const requiredHistory = mech.requiredHistoryClues || [];
+    const requiredArt = mech.requiredArtClues || [];
+    const totalRequired = requiredHistory.length + requiredArt.length;
+
+    if (totalRequired === 0) return 0;
+
+    const collectedHistory = requiredHistory.filter(id =>
+      this.state.collectedClues.includes(id)
+    ).length;
+    const collectedArt = requiredArt.filter(id =>
+      this.state.collectedClues.includes(id)
+    ).length;
+
+    const totalCollected = collectedHistory + collectedArt;
+    const progress = Math.round((totalCollected / totalRequired) * 100);
+
+    this.state.dualHall.linkedMechanismProgress[mechanismId] = progress;
+    mech.linkedProgress = progress;
+
+    eventBus.emit('dualhall:linked-mechanism-progress', {
+      mechanismId,
+      progress,
+      collectedHistory,
+      requiredHistory: requiredHistory.length,
+      collectedArt,
+      requiredArt: requiredArt.length
+    });
+
+    this.saveToStorage();
+    return progress;
+  }
+
+  canSolveLinkedMechanism(mechanismId: string): boolean {
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech || !mech.isLinked || mech.solved) return false;
+
+    const requiredHistory = mech.requiredHistoryClues || [];
+    const requiredArt = mech.requiredArtClues || [];
+
+    const allHistoryCollected = requiredHistory.every(id =>
+      this.state.collectedClues.includes(id)
+    );
+    const allArtCollected = requiredArt.every(id =>
+      this.state.collectedClues.includes(id)
+    );
+
+    return allHistoryCollected && allArtCollected;
+  }
+
+  solveLinkedMechanism(mechanismId: string): boolean {
+    if (!this.canSolveLinkedMechanism(mechanismId)) return false;
+
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech) return false;
+
+    mech.solved = true;
+    this.state.solvedMechanisms.push(mechanismId);
+
+    if (mech.reward === 'unlock_phase_2') {
+      this.unlockDualHallPhase(2);
+      this.unlockExhibition('exhibition_history_2');
+      this.unlockExhibition('exhibition_art_2');
+    } else if (mech.reward === 'unlock_phase_3') {
+      this.unlockDualHallPhase(3);
+      this.unlockExhibition('exhibition_history_3');
+      this.unlockExhibition('exhibition_art_3');
+    } else if (mech.reward === 'chapter_4_complete') {
+      const chapter = this.chapters.find(c => c.id === 'chapter_4');
+      if (chapter) {
+        chapter.completed = true;
+        eventBus.emit('chapter:complete', { chapterId: 'chapter_4' });
+      }
+    }
+
+    eventBus.emit('dualhall:linked-mechanism-solve', {
+      mechanismId,
+      reward: mech.reward
+    });
+    eventBus.emit('mechanism:solve', { mechanismId, reward: mech.reward });
+
+    this.saveToStorage();
+    return true;
+  }
+
+  unlockDualHallPhase(phase: number): boolean {
+    if (this.state.dualHall.currentInvestigationPhase >= phase) {
+      return false;
+    }
+    this.state.dualHall.currentInvestigationPhase = phase;
+    eventBus.emit('dualhall:phase-unlock', { phase });
+    this.saveToStorage();
+    return true;
+  }
+
+  startDualHallInvestigation(): boolean {
+    const chapter = this.chapters.find(c => c.id === 'chapter_4');
+    if (!chapter) return false;
+
+    this.state.dualHall.currentInvestigationPhase = 1;
+    this.unlockHall('history');
+    this.unlockHall('art');
+    this.unlockExhibition('exhibition_history_1');
+    this.unlockExhibition('exhibition_art_1');
+
+    eventBus.emit('dualhall:start', { chapterId: 'chapter_4' });
+    this.saveToStorage();
+    return true;
+  }
+
+  getHallExhibitions(hallType: HallType): Exhibition[] {
+    return this.exhibitions.filter(e => e.hallType === hallType).map(e => ({ ...e }));
+  }
+
+  getCluesByHall(hallType: HallType): Clue[] {
+    return this.clues.filter(c => c.hallOrigin === hallType).map(c => ({ ...c }));
+  }
+
+  getCollectedCluesByHall(hallType: HallType): Clue[] {
+    return this.clues.filter(
+      c => c.hallOrigin === hallType && c.collected
+    ).map(c => ({ ...c }));
+  }
+
+  getLinkedMechanisms(): Mechanism[] {
+    return this.mechanisms.filter(m => m.isLinked).map(m => ({ ...m }));
   }
 }
 

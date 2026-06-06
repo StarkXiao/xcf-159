@@ -28,6 +28,23 @@ export const CHAPTERS: Chapter[] = [
     requiredClues: ['clue_11', 'clue_12', 'clue_13', 'clue_14', 'clue_15'],
     storyText: '当最后一道工序完成，青铜鼎恢复了昔日的辉煌。你仿佛穿越千年，亲手触摸到了那段辉煌的历史。文物的修复，亦是记忆的修复...',
     completed: false
+  },
+  {
+    id: 'chapter_4',
+    title: '第四章：双馆并行调查',
+    description: '博物馆的最深处隐藏着两座神秘展馆——历史馆与艺术馆。你需要在两馆间交叉取证，共享线索，共同推进联动机关，揭开尘封千年的秘密。',
+    exhibitions: ['exhibition_history_1', 'exhibition_history_2', 'exhibition_history_3', 'exhibition_art_1', 'exhibition_art_2', 'exhibition_art_3'],
+    requiredClues: ['clue_h1', 'clue_h2', 'clue_h3', 'clue_a1', 'clue_a2', 'clue_a3', 'clue_shared_1', 'clue_shared_2'],
+    storyText: '当历史与艺术交汇，真相终于浮出水面。原来青铜鼎与琥珀，有着千丝万缕的联系...',
+    completed: false,
+    isDualHall: true,
+    historyExhibitions: ['exhibition_history_1', 'exhibition_history_2', 'exhibition_history_3'],
+    artExhibitions: ['exhibition_art_1', 'exhibition_art_2', 'exhibition_art_3'],
+    dualHallStoryText: {
+      history: '穿越千年的青铜文明，诉说着王朝的兴衰与匠人的执着...',
+      art: '流光溢彩的琥珀艺术，封存着永恒的美丽与动人的故事...',
+      combined: '历史与艺术在此刻交融，青铜的厚重与琥珀的温润，共同谱写了一曲跨越时空的交响乐章。原来爷爷一直想告诉你的是——美，从来都有千种面貌，但爱，始终如一。'
+    }
   }
 ];
 
@@ -123,6 +140,110 @@ export const EXHIBITIONS: Exhibition[] = [
       { id: 'hs_relic_display', x: 300, y: 500, width: 160, height: 160, type: 'mechanism', targetId: 'mech_5', hint: '欣赏修复后的青铜鼎', activated: false },
       { id: 'hs_back_6', x: 50, y: 1050, width: 120, height: 100, type: 'exit', targetId: 'exhibition_6', hint: '返回修复室', activated: false }
     ]
+  },
+  {
+    id: 'exhibition_history_1',
+    name: '历史馆·青铜王朝',
+    bgColor: GAME_CONFIG.COLORS.BRONZE,
+    description: '这里陈列着商周时期的青铜重器。每一件器物都诉说着那个辉煌时代的故事。墙上的铭文记载着一位神秘工匠的传奇。',
+    unlocked: false,
+    hallType: 'history',
+    linkedExhibitionId: 'exhibition_art_1',
+    phase: 1,
+    hotspots: [
+      { id: 'hs_h1_1', x: 150, y: 400, width: 120, height: 120, type: 'clue', targetId: 'clue_h1', hint: '青铜鼎铭文拓片', activated: false },
+      { id: 'hs_h1_2', x: 450, y: 500, width: 120, height: 120, type: 'clue', targetId: 'clue_h2', hint: '工匠族谱', activated: false },
+      { id: 'hs_h1_link', x: 300, y: 700, width: 140, height: 140, type: 'mechanism', targetId: 'mech_linked_1', hint: '联动机关·青铜锁', activated: false },
+      { id: 'hs_h1_to_h2', x: 600, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_history_2', hint: '前往礼乐厅', activated: false },
+      { id: 'hs_h1_to_art', x: 50, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_art_1', hint: '前往艺术馆', activated: false },
+      { id: 'hs_h1_back', x: 300, y: 1100, width: 120, height: 100, type: 'exit', targetId: 'exhibition_7', hint: '返回青铜珍品馆', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_history_2',
+    name: '历史馆·礼乐厅',
+    bgColor: GAME_CONFIG.COLORS.DARK_BROWN,
+    description: '恢宏的编钟静静伫立，仿佛还能听到千年前的礼乐回响。这里展示着古代贵族的礼仪制度与音乐文化。',
+    unlocked: false,
+    hallType: 'history',
+    linkedExhibitionId: 'exhibition_art_2',
+    phase: 2,
+    hotspots: [
+      { id: 'hs_h2_1', x: 200, y: 450, width: 120, height: 120, type: 'clue', targetId: 'clue_h3', hint: '编钟乐谱', activated: false },
+      { id: 'hs_h2_2', x: 500, y: 350, width: 120, height: 120, type: 'clue', targetId: 'clue_shared_1', hint: '礼乐铭文（需艺术馆线索）', activated: false },
+      { id: 'hs_h2_link', x: 350, y: 650, width: 140, height: 140, type: 'mechanism', targetId: 'mech_linked_2', hint: '联动机关·音律锁', activated: false },
+      { id: 'hs_h2_to_h3', x: 600, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_history_3', hint: '前往匠作坊', activated: false },
+      { id: 'hs_h2_to_art', x: 50, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_art_2', hint: '前往艺术馆', activated: false },
+      { id: 'hs_h2_back', x: 300, y: 1100, width: 120, height: 100, type: 'exit', targetId: 'exhibition_history_1', hint: '返回青铜王朝', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_history_3',
+    name: '历史馆·匠作坊',
+    bgColor: GAME_CONFIG.COLORS.DARK_BG,
+    description: '还原了古代青铜铸造作坊的场景。炉火虽已熄灭，但匠人的智慧与执着仿佛还在空气中流淌。',
+    unlocked: false,
+    hallType: 'history',
+    linkedExhibitionId: 'exhibition_art_3',
+    phase: 3,
+    hotspots: [
+      { id: 'hs_h3_1', x: 150, y: 400, width: 120, height: 120, type: 'clue', targetId: 'clue_shared_2', hint: '铸造图谱（需艺术馆线索）', activated: false },
+      { id: 'hs_h3_link', x: 300, y: 600, width: 160, height: 160, type: 'mechanism', targetId: 'mech_linked_final', hint: '联动机关·千年之锁', activated: false },
+      { id: 'hs_h3_to_art', x: 50, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_art_3', hint: '前往艺术馆', activated: false },
+      { id: 'hs_h3_back', x: 600, y: 900, width: 120, height: 100, type: 'exit', targetId: 'exhibition_history_2', hint: '返回礼乐厅', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_art_1',
+    name: '艺术馆·琥珀殿堂',
+    bgColor: GAME_CONFIG.COLORS.AMBER,
+    description: '温润的琥珀在灯光下散发着迷人的光芒。这里收藏着古今中外的琥珀艺术珍品，每一件都封存着永恒的美。',
+    unlocked: false,
+    hallType: 'art',
+    linkedExhibitionId: 'exhibition_history_1',
+    phase: 1,
+    hotspots: [
+      { id: 'hs_a1_1', x: 150, y: 400, width: 120, height: 120, type: 'clue', targetId: 'clue_a1', hint: '琥珀雕件·昆虫', activated: false },
+      { id: 'hs_a1_2', x: 450, y: 500, width: 120, height: 120, type: 'clue', targetId: 'clue_a2', hint: '艺术家手札', activated: false },
+      { id: 'hs_a1_link', x: 300, y: 700, width: 140, height: 140, type: 'mechanism', targetId: 'mech_linked_1', hint: '联动机关·琥珀锁', activated: false },
+      { id: 'hs_a1_to_a2', x: 600, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_art_2', hint: '前往画廊', activated: false },
+      { id: 'hs_a1_to_history', x: 50, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_history_1', hint: '前往历史馆', activated: false },
+      { id: 'hs_a1_back', x: 300, y: 1100, width: 120, height: 100, type: 'exit', targetId: 'exhibition_7', hint: '返回青铜珍品馆', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_art_2',
+    name: '艺术馆·时光画廊',
+    bgColor: GAME_CONFIG.COLORS.DEEP_PURPLE,
+    description: '一幅幅以琥珀为主题的画作悬挂两侧。画中的光影流转，仿佛将时间凝固在每一笔色彩之中。',
+    unlocked: false,
+    hallType: 'art',
+    linkedExhibitionId: 'exhibition_history_2',
+    phase: 2,
+    hotspots: [
+      { id: 'hs_a2_1', x: 200, y: 450, width: 120, height: 120, type: 'clue', targetId: 'clue_a3', hint: '油画·青铜与琥珀', activated: false },
+      { id: 'hs_a2_2', x: 500, y: 350, width: 120, height: 120, type: 'clue', targetId: 'clue_shared_1', hint: '画家题记（需历史馆线索）', activated: false },
+      { id: 'hs_a2_link', x: 350, y: 650, width: 140, height: 140, type: 'mechanism', targetId: 'mech_linked_2', hint: '联动机关·调色锁', activated: false },
+      { id: 'hs_a2_to_a3', x: 600, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_art_3', hint: '前往创作室', activated: false },
+      { id: 'hs_a2_to_history', x: 50, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_history_2', hint: '前往历史馆', activated: false },
+      { id: 'hs_a2_back', x: 300, y: 1100, width: 120, height: 100, type: 'exit', targetId: 'exhibition_art_1', hint: '返回琥珀殿堂', activated: false }
+    ]
+  },
+  {
+    id: 'exhibition_art_3',
+    name: '艺术馆·创作室',
+    bgColor: GAME_CONFIG.COLORS.WARM_ORANGE,
+    description: '艺术家的创作空间，散落着未完成的作品和各种工具。空气中似乎还残留着松节油和琥珀的混合香气。',
+    unlocked: false,
+    hallType: 'art',
+    linkedExhibitionId: 'exhibition_history_3',
+    phase: 3,
+    hotspots: [
+      { id: 'hs_a3_1', x: 150, y: 400, width: 120, height: 120, type: 'clue', targetId: 'clue_shared_2', hint: '创作草图（需历史馆线索）', activated: false },
+      { id: 'hs_a3_link', x: 300, y: 600, width: 160, height: 160, type: 'mechanism', targetId: 'mech_linked_final', hint: '联动机关·永恒之锁', activated: false },
+      { id: 'hs_a3_to_history', x: 50, y: 900, width: 100, height: 150, type: 'exit', targetId: 'exhibition_history_3', hint: '前往历史馆', activated: false },
+      { id: 'hs_a3_back', x: 600, y: 900, width: 120, height: 100, type: 'exit', targetId: 'exhibition_art_2', hint: '返回时光画廊', activated: false }
+    ]
   }
 ];
 
@@ -172,5 +293,46 @@ export const MECHANISMS: Mechanism[] = [
     hint: '商周时期开始的年份...',
     solved: false,
     displayName: '青铜密码'
+  },
+  {
+    id: 'mech_linked_1',
+    type: 'linked',
+    answer: '1212',
+    reward: 'unlock_phase_2',
+    hint: '青铜的铸造年份与琥珀的诞生年份，交替排列...',
+    solved: false,
+    displayName: '联动机关·青铜琥珀锁',
+    isLinked: true,
+    requiredHistoryClues: ['clue_h1', 'clue_h2'],
+    requiredArtClues: ['clue_a1', 'clue_a2'],
+    linkedProgress: 0,
+    hallOrigin: 'history'
+  },
+  {
+    id: 'mech_linked_2',
+    type: 'linked',
+    answer: [1, 3, 2, 4],
+    reward: 'unlock_phase_3',
+    hint: '按照礼乐的节奏与画作的色调交替排列...',
+    solved: false,
+    displayName: '联动机关·音律调色锁',
+    isLinked: true,
+    requiredHistoryClues: ['clue_h3', 'clue_shared_1'],
+    requiredArtClues: ['clue_a3', 'clue_shared_1'],
+    linkedProgress: 0,
+    hallOrigin: 'art'
+  },
+  {
+    id: 'mech_linked_final',
+    type: 'linked',
+    answer: '永恒',
+    reward: 'chapter_4_complete',
+    hint: '历史与艺术的交汇处，是爷爷想要告诉你的答案...',
+    solved: false,
+    displayName: '联动机关·千年永恒锁',
+    isLinked: true,
+    requiredHistoryClues: ['clue_h1', 'clue_h2', 'clue_h3', 'clue_shared_1', 'clue_shared_2'],
+    requiredArtClues: ['clue_a1', 'clue_a2', 'clue_a3', 'clue_shared_1', 'clue_shared_2'],
+    linkedProgress: 0
   }
 ];

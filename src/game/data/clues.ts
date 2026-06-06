@@ -141,5 +141,107 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_3',
     isMemory: false,
     collected: false
+  },
+  {
+    id: 'clue_h1',
+    name: '青铜鼎铭文拓片',
+    description: '一张精心拓印的青铜鼎铭文。上面的文字记载着："周王十二年，铸鼎于宗庙，匠人怀素监造"。这是解开历史的钥匙。',
+    icon: '📜',
+    chapterId: 'chapter_4',
+    isMemory: false,
+    collected: false,
+    hallOrigin: 'history',
+    isShared: false
+  },
+  {
+    id: 'clue_h2',
+    name: '工匠族谱',
+    description: '一本泛黄的工匠族谱，记载着一个神秘工匠家族的传承。其中一页写着："怀素之子，名唤永恒，精通青铜与玉石的奥秘"。这似乎与某个艺术家有渊源...',
+    icon: '📖',
+    chapterId: 'chapter_4',
+    isMemory: true,
+    memoryOrder: 1,
+    collected: false,
+    hallOrigin: 'history',
+    isShared: true,
+    linkedClueId: 'clue_a2'
+  },
+  {
+    id: 'clue_h3',
+    name: '编钟乐谱',
+    description: '一卷古老的乐谱，记载着祭祀时演奏的乐曲。乐谱的节奏似乎与某种艺术创作的节奏有着奇妙的呼应...',
+    icon: '🎵',
+    chapterId: 'chapter_4',
+    isMemory: true,
+    memoryOrder: 2,
+    collected: false,
+    hallOrigin: 'history',
+    isShared: true,
+    linkedClueId: 'clue_a3'
+  },
+  {
+    id: 'clue_a1',
+    name: '琥珀雕件·昆虫',
+    description: '一枚精美的琥珀雕件，里面封存着一只远古的昆虫。雕工细腻，栩栩如生。底部刻着"永恒工坊"的印记。',
+    icon: '💎',
+    chapterId: 'chapter_4',
+    isMemory: false,
+    collected: false,
+    hallOrigin: 'art',
+    isShared: false
+  },
+  {
+    id: 'clue_a2',
+    name: '艺术家手札',
+    description: '一位艺术家的创作手札。其中写道："我的家族世代从事艺术创作，可追溯到商周时期的一位青铜工匠..."。这与某个工匠家族似乎有关联...',
+    icon: '📔',
+    chapterId: 'chapter_4',
+    isMemory: true,
+    memoryOrder: 1,
+    collected: false,
+    hallOrigin: 'art',
+    isShared: true,
+    linkedClueId: 'clue_h2'
+  },
+  {
+    id: 'clue_a3',
+    name: '油画·青铜与琥珀',
+    description: '一幅题为《青铜与琥珀》的油画。画面中，厚重的青铜鼎与温润的琥珀交相辉映。画作的色彩节奏与某种古乐的旋律有着奇妙的共鸣...',
+    icon: '🎨',
+    chapterId: 'chapter_4',
+    isMemory: true,
+    memoryOrder: 2,
+    collected: false,
+    hallOrigin: 'art',
+    isShared: true,
+    linkedClueId: 'clue_h3'
+  },
+  {
+    id: 'clue_shared_1',
+    name: '礼乐铭文·画家题记',
+    description: '【需要同时拥有工匠族谱和艺术家手札后才能完整解读：铭文与题记合璧，揭示了一个惊人的秘密：这位青铜工匠与琥珀艺术家竟是同一家族的传人。' +
+                 '族谱记载"永恒"这个名字，在两个家族中代代相传，他们追求的是——将永恒的美。这是解开第一阶段联动机关的关键线索。',
+    icon: '🔗',
+    chapterId: 'chapter_4',
+    isMemory: true,
+    memoryOrder: 3,
+    collected: false,
+    hallOrigin: 'history',
+    isShared: true,
+    requiredClueFromOtherHall: 'clue_a2'
+  },
+  {
+    id: 'clue_shared_2',
+    name: '铸造图谱·创作草图',
+    description: '【需要同时拥有编钟乐谱和油画后才能完整解读：铸造图谱与创作草图交融，揭示了最终的答案：青铜铸造的图谱与艺术创作的草图，在"永恒"家族代代相传的秘技——' +
+                 '无论是青铜的厚重，还是琥珀的温润，都是对"永恒"的追求。这是解开最终联动机关的核心线索。答案就是——"永恒"。',
+    icon: '🗝️',
+    chapterId: 'chapter_4',
+    isMemory: true,
+    memoryOrder: 4,
+    collected: false,
+    hallOrigin: 'art',
+    isShared: true,
+    requiredClueFromOtherHall: 'clue_h3'
   }
 ];
