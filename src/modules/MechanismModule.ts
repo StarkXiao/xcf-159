@@ -30,7 +30,25 @@ export class MechanismModule {
     this.sequenceInput = [];
     this.isOpen = true;
 
-    if (mechanism.type === 'password') {
+    if (mechanism.type === 'memory_sort') {
+      const result = store.interactWithMechanism(data.mechanismId);
+      if (result.success && result.type === 'memory_sort') {
+        this.isOpen = false;
+        eventBus.emit('memorysort:open', { mechanismId: data.mechanismId, memorySortData: result.memorySortData });
+      } else if (!result.success) {
+        this.isOpen = false;
+        eventBus.emit('mechanism:error', { mechanismId: data.mechanismId, reason: result.reason });
+      }
+    } else if (mechanism.type === 'branch_choice') {
+      const result = store.interactWithMechanism(data.mechanismId);
+      if (result.success && result.type === 'branch_choice') {
+        this.isOpen = false;
+        eventBus.emit('branchchoice:open', { mechanismId: data.mechanismId, branch: result.branch });
+      } else if (!result.success) {
+        this.isOpen = false;
+        eventBus.emit('mechanism:error', { mechanismId: data.mechanismId, reason: result.reason });
+      }
+    } else if (mechanism.type === 'password') {
       this.showPasswordLock(mechanism);
     } else if (mechanism.type === 'sequence') {
       this.showSequenceLock(mechanism);
@@ -69,6 +87,26 @@ export class MechanismModule {
     } else if (data.reward === 'unlock_auth_final') {
       Animator.delay(1500).then(() => {
         this.showChapterUnlockAnimation('第五章：真伪鉴定', '珍藏密室已开放');
+      });
+    } else if (data.reward === 'start_memory_corridor') {
+      Animator.delay(1500).then(() => {
+        this.showChapterUnlockAnimation('第六章：记忆回廊', '童年、青春、此刻、终章\n四段记忆，四种结局');
+      });
+    } else if (data.reward === 'unlock_corridor_phase_2') {
+      Animator.delay(1000).then(() => {
+        this.showPhaseUnlockAnimation('青春回廊已开启', '属于琥珀的青春岁月正在苏醒');
+      });
+    } else if (data.reward === 'unlock_corridor_final') {
+      Animator.delay(1000).then(() => {
+        this.showPhaseUnlockAnimation('记忆拼图完成', '所有记忆碎片已归位');
+      });
+    } else if (data.reward === 'unlock_ending_hall') {
+      Animator.delay(1000).then(() => {
+        this.showPhaseUnlockAnimation('最终抉择已就绪', '请前往终章回廊');
+      });
+    } else if (data.reward === 'complete_memory_corridor') {
+      Animator.delay(1500).then(() => {
+        eventBus.emit('ending:show');
       });
     }
   }

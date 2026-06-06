@@ -14,6 +14,9 @@ import { RestorationModule } from '../modules/RestorationModule';
 import { DualHallModule } from '../modules/DualHallModule';
 import { VisitorQuestModule } from '../modules/VisitorQuestModule';
 import { ArchiveReadingRoomModule } from '../modules/ArchiveReadingRoomModule';
+import { MemorySortModule } from '../modules/MemorySortModule';
+import { BranchChoiceModule } from '../modules/BranchChoiceModule';
+import { EndingModule } from '../modules/EndingModule';
 import { audioModule } from '../modules/AudioModule';
 
 export class GameScene extends Scene {
@@ -28,6 +31,9 @@ export class GameScene extends Scene {
   private dualHallModule: DualHallModule | null = null;
   private visitorQuestModule: VisitorQuestModule | null = null;
   private archiveReadingRoomModule: ArchiveReadingRoomModule | null = null;
+  private memorySortModule: MemorySortModule | null = null;
+  private branchChoiceModule: BranchChoiceModule | null = null;
+  private endingModule: EndingModule | null = null;
 
   private transitionOverlay: PIXI.Graphics | null = null;
 
@@ -47,6 +53,9 @@ export class GameScene extends Scene {
     this.dualHallModule = new DualHallModule(this);
     this.visitorQuestModule = new VisitorQuestModule(this);
     this.archiveReadingRoomModule = new ArchiveReadingRoomModule(this);
+    this.memorySortModule = new MemorySortModule(this);
+    this.branchChoiceModule = new BranchChoiceModule(this);
+    this.endingModule = new EndingModule(this);
 
     this.createParticles(25);
 
@@ -159,6 +168,15 @@ export class GameScene extends Scene {
     if (this.archiveReadingRoomModule) {
       this.archiveReadingRoomModule.update(delta);
     }
+    if (this.memorySortModule) {
+      this.memorySortModule.update(delta);
+    }
+    if (this.branchChoiceModule) {
+      this.branchChoiceModule.update(delta);
+    }
+    if (this.endingModule) {
+      this.endingModule.update(delta);
+    }
   }
 
   destroy(): void {
@@ -178,6 +196,9 @@ export class GameScene extends Scene {
     if (this.dualHallModule) this.dualHallModule.destroy();
     if (this.visitorQuestModule) this.visitorQuestModule.destroy();
     if (this.archiveReadingRoomModule) this.archiveReadingRoomModule.destroy();
+    if (this.memorySortModule) this.memorySortModule.destroy();
+    if (this.branchChoiceModule) this.branchChoiceModule.destroy();
+    if (this.endingModule) this.endingModule.destroy();
     if (this.transitionOverlay) this.transitionOverlay.destroy();
   }
 }

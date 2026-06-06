@@ -3,11 +3,14 @@ type EventCallback = (...args: any[]) => void;
 class EventBus {
   private events: Map<string, EventCallback[]> = new Map();
 
-  on(eventName: string, callback: EventCallback): void {
+  on(eventName: string, callback: EventCallback): () => void {
     if (!this.events.has(eventName)) {
       this.events.set(eventName, []);
     }
     this.events.get(eventName)!.push(callback);
+    return () => {
+      this.off(eventName, callback);
+    };
   }
 
   off(eventName: string, callback: EventCallback): void {

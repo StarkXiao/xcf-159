@@ -179,6 +179,44 @@ class Store {
     }
 
     this.applyStateToData();
+
+    eventBus.on('chapter:enter', (data: { chapterId: string }) => {
+      const recording = this.recordings.find(r => r.id === `rec_${data.chapterId}_unlock`);
+      if (recording && recording.unlocked && !recording.played) {
+        setTimeout(() => {
+          eventBus.emit('recording:auto-play', { recordingId: recording.id });
+        }, 2000);
+      }
+    });
+
+    eventBus.on('memorycorridor:phase-complete', (data: { phase: number }) => {
+      if (data.phase === 2) {
+        const recording = this.recordings.find(r => r.id === 'rec_ch6_phase1_complete');
+        if (recording && recording.unlocked && !recording.played) {
+          setTimeout(() => {
+            eventBus.emit('recording:auto-play', { recordingId: recording.id });
+          }, 2000);
+        }
+      }
+    });
+
+    eventBus.on('memorycorridor:memory-complete', () => {
+      const recording = this.recordings.find(r => r.id === 'rec_ch6_memory_complete');
+      if (recording && recording.unlocked && !recording.played) {
+        setTimeout(() => {
+          eventBus.emit('recording:auto-play', { recordingId: recording.id });
+        }, 2000);
+      }
+    });
+
+    eventBus.on('memorycorridor:ending-achieved', (data: { endingId: string }) => {
+      const recording = this.recordings.find(r => r.endingId === data.endingId);
+      if (recording && recording.unlocked && !recording.played) {
+        setTimeout(() => {
+          eventBus.emit('recording:auto-play', { recordingId: recording.id });
+        }, 2000);
+      }
+    });
   }
 
   private loadFromStorage(): GameState | null {
@@ -380,6 +418,10 @@ class Store {
     return this.chapters.map(c => ({ ...c }));
   }
 
+  getChapterById(chapterId: string): Chapter | undefined {
+    return this.chapters.find(c => c.id === chapterId);
+  }
+
   getCurrentChapter(): Chapter | undefined {
     return this.chapters.find(c => c.id === this.state.currentChapter);
   }
@@ -434,6 +476,13 @@ class Store {
     eventBus.emit('clue:collect', { clueId });
     this.saveToStorage();
     return true;
+  }
+
+  checkMechanismPassword(mechanismId: string, password: string): boolean {
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech || mech.type !== 'password') return false;
+    if (this.state.solvedMechanisms.includes(mechanismId)) return false;
+    return password === mech.answer;
   }
 
   solveMechanism(mechanismId: string): boolean {

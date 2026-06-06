@@ -22,12 +22,20 @@ export class AudioModule {
   constructor() {
     eventBus.on('audio:play', this.handlePlayAudio.bind(this));
     eventBus.on('settings:update', this.handleSettingsUpdate.bind(this));
+    eventBus.on('recording:auto-play', this.handleAutoPlayRecording.bind(this));
 
     const settings = store.getSettings();
     this.bgmVolume = settings.bgmVolume;
     this.bgmMuted = settings.bgmMuted;
     this.sfxVolume = settings.sfxVolume;
     this.sfxMuted = settings.sfxMuted;
+  }
+
+  private handleAutoPlayRecording(data: { recordingId: string }): void {
+    const recording = store.getRecordingById(data.recordingId);
+    if (recording && recording.unlocked && !recording.played) {
+      this.playVoice(data.recordingId);
+    }
   }
 
   private handlePlayAudio(data: { type: 'bgm' | 'sfx'; name: string }): void {
