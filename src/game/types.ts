@@ -16,6 +16,7 @@ export interface Clue {
   endingId?: string;
   hint?: string;
   mechanismPurpose?: MechanismPurpose[];
+  supplementaryDescription?: string;
 }
 
 export interface MechanismPurpose {
@@ -36,6 +37,7 @@ export interface Hotspot {
   targetId: string;
   hint: string;
   activated: boolean;
+  investigated?: boolean;
 }
 
 export interface Exhibition {
@@ -510,6 +512,7 @@ export interface GameState {
   collectedClues: string[];
   solvedMechanisms: string[];
   unlockedExhibitions: string[];
+  investigatedHotspots: string[];
   settings: GameSettings;
   archive: ArchiveState;
   nightPatrol: NightPatrolState;

@@ -10,6 +10,7 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_1',
     isMemory: false,
     collected: false,
+    supplementaryDescription: '仔细观察照片，你发现那个小女孩的眼睛里闪烁着好奇的光芒。她手中的琥珀吊坠看起来非常特别，似乎封存着某种古老的秘密。照片的边缘有些磨损，说明它被经常拿出来观看。这家人背后的建筑看起来像是一座博物馆的入口。',
     mechanismPurpose: [
       {
         mechanismId: 'mech_1',
@@ -28,6 +29,7 @@ export const CLUES: Clue[] = [
     isMemory: true,
     memoryOrder: 1,
     collected: false,
+    supplementaryDescription: '用放大镜仔细观察，琥珀中的昆虫保持着完美的形态，翅膀上的纹理清晰可见。吊坠的背面刻有一个小小的「林」字，暗示着它的主人。琥珀的温度似乎比周围的物体略高，仿佛蕴含着某种温暖的能量。',
     mechanismPurpose: [
       {
         mechanismId: 'mech_2',
@@ -46,6 +48,7 @@ export const CLUES: Clue[] = [
     isMemory: true,
     memoryOrder: 2,
     collected: false,
+    supplementaryDescription: '这页日记的墨水已经有些褪色，但依然能感受到字里行间的温情。页面的角落有淡淡的泪痕印记，记录下某个悲伤的时刻。从纸张的质地来看，这是一本相当昂贵的日记本，主人一定非常珍视这些记录。',
     mechanismPurpose: [
       {
         mechanismId: 'mech_2',
@@ -81,6 +84,7 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_1',
     isMemory: false,
     collected: false,
+    supplementaryDescription: '音乐盒的木质表面有着精美的雕花，是手工制作的痕迹。里面的机芯依然运转流畅，音符清晰动听。仔细听，这首摇篮曲似乎有些特别，旋律中隐藏着某种规律。或许这是爷爷专门为小琥珀创作的曲子。',
     mechanismPurpose: []
   },
   {
@@ -91,6 +95,7 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_2',
     isMemory: false,
     collected: false,
+    supplementaryDescription: '钥匙的金属表面有着明显的使用痕迹，但齿部依然锋利。钥匙柄上的琥珀花纹与琥珀吊坠上的图案惊人地相似，暗示着它们来自同一个工匠之手。钥匙的尖端似乎还残留着某种古老的油脂。',
     mechanismPurpose: [
       {
         mechanismId: 'mech_3',

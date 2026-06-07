@@ -40,6 +40,13 @@ class Store {
     const savedState = this.loadFromStorage();
     this.clues = JSON.parse(JSON.stringify(CLUES)).concat(JSON.parse(JSON.stringify(POWER_OUTAGE_CLUES)));
     this.exhibitions = JSON.parse(JSON.stringify(EXHIBITIONS));
+    this.exhibitions.forEach(exhibition => {
+      exhibition.hotspots.forEach(hotspot => {
+        if (hotspot.investigated === undefined) {
+          hotspot.investigated = false;
+        }
+      });
+    });
     this.chapters = JSON.parse(JSON.stringify(CHAPTERS));
     this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS)).concat(JSON.parse(JSON.stringify(POWER_OUTAGE_MECHANISMS)));
     this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
@@ -154,6 +161,7 @@ class Store {
       collectedClues: [],
       solvedMechanisms: [],
       unlockedExhibitions: ['exhibition_1', 'exhibition_2', 'exhibition_3'],
+      investigatedHotspots: [],
       settings: {
         bgmVolume: 0.5,
         sfxVolume: 0.7,
@@ -529,6 +537,33 @@ class Store {
     return true;
   }
 
+  investigateHotspot(hotspotId: string): boolean {
+    if (this.state.investigatedHotspots.includes(hotspotId)) return false;
+    this.state.investigatedHotspots.push(hotspotId);
+
+    const exhibition = this.exhibitions.find(e =>
+      e.hotspots.some(h => h.id === hotspotId)
+    );
+    if (exhibition) {
+      const hotspot = exhibition.hotspots.find(h => h.id === hotspotId);
+      if (hotspot) {
+        hotspot.investigated = true;
+      }
+    }
+
+    eventBus.emit('hotspot:investigate', { hotspotId });
+    this.saveToStorage();
+    return true;
+  }
+
+  isHotspotInvestigated(hotspotId: string): boolean {
+    return this.state.investigatedHotspots.includes(hotspotId);
+  }
+
+  getInvestigatedHotspots(): string[] {
+    return [...this.state.investigatedHotspots];
+  }
+
   checkMechanismPassword(mechanismId: string, password: string): boolean {
     const mech = this.mechanisms.find(m => m.id === mechanismId);
     if (!mech || mech.type !== 'password') return false;
@@ -834,6 +869,13 @@ class Store {
     localStorage.removeItem('amber-memory-hall-save');
     this.clues = JSON.parse(JSON.stringify(CLUES)).concat(JSON.parse(JSON.stringify(POWER_OUTAGE_CLUES)));
     this.exhibitions = JSON.parse(JSON.stringify(EXHIBITIONS));
+    this.exhibitions.forEach(exhibition => {
+      exhibition.hotspots.forEach(hotspot => {
+        if (hotspot.investigated === undefined) {
+          hotspot.investigated = false;
+        }
+      });
+    });
     this.chapters = JSON.parse(JSON.stringify(CHAPTERS));
     this.mechanisms = JSON.parse(JSON.stringify(MECHANISMS)).concat(JSON.parse(JSON.stringify(POWER_OUTAGE_MECHANISMS)));
     this.recordings = JSON.parse(JSON.stringify(RECORDINGS));
@@ -857,6 +899,7 @@ class Store {
       collectedClues: [],
       solvedMechanisms: [],
       unlockedExhibitions: ['exhibition_1', 'exhibition_2', 'exhibition_3'],
+      investigatedHotspots: [],
       settings: this.state.settings,
       archive: {
         unlockedRecordings: ['rec_intro', 'rec_ch1_unlock'],

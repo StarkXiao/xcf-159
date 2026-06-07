@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { Exhibition, Hotspot, ExhibitionMode } from '../game/types';
+import { Exhibition, Hotspot, ExhibitionMode, Clue } from '../game/types';
 import { store } from '../game/Store';
 import { eventBus } from '../game/EventBus';
 import { GAME_CONFIG } from '../game/config';
@@ -11,6 +11,8 @@ export class ExhibitionModule {
   private hotspots: Map<string, PIXI.Graphics> = new Map();
   private hotspotLabels: Map<string, PIXI.Text> = new Map();
   private resetHotspots: Map<string, PIXI.Graphics> = new Map();
+  private investigatedHotspots: Map<string, PIXI.Graphics> = new Map();
+  private detailPanel: PIXI.Container | null = null;
   private currentExhibition: Exhibition | null = null;
   private background: PIXI.Graphics | null = null;
   private transitionOverlay: PIXI.Graphics;
@@ -235,7 +237,12 @@ export class ExhibitionModule {
     const isSolved = hotspot.type === 'mechanism' &&
       store.getState().solvedMechanisms.includes(hotspot.targetId);
 
-    if (isCollected) return;
+    if (isCollected) {
+      if (hotspot.type === 'clue') {
+        this.createInvestigatedHotspot(hotspot);
+      }
+      return;
+    }
 
     if (isSolved) {
       if (this.currentMode === 'night' && hotspot.type === 'mechanism') {
@@ -401,6 +408,92 @@ export class ExhibitionModule {
     );
   }
 
+  private createInvestigatedHotspot(hotspot: Hotspot): void {
+    if (this.investigatedHotspots.has(hotspot.id)) return;
+
+    const clue = store.getClueById(hotspot.targetId);
+    if (!clue) return;
+
+    const investigatedGraphics = new PIXI.Graphics();
+    const color = GAME_CONFIG.COLORS.SILVER_GRAY;
+
+    investigatedGraphics.lineStyle(2, color, 0.6);
+    investigatedGraphics.beginFill(color, 0.1);
+    investigatedGraphics.drawRoundedRect(0, 0, hotspot.width, hotspot.height, 12);
+    investigatedGraphics.endFill();
+
+    investigatedGraphics.beginFill(color, 0.3);
+    investigatedGraphics.drawCircle(hotspot.width / 2, hotspot.height / 2, 12);
+    investigatedGraphics.endFill();
+
+    const iconText = new PIXI.Text('✓', {
+      fontSize: 24,
+      fill: GAME_CONFIG.COLORS.SILVER_GRAY,
+      fontWeight: 'bold'
+    });
+    iconText.anchor.set(0.5);
+    iconText.x = hotspot.width / 2;
+    iconText.y = hotspot.height / 2;
+    investigatedGraphics.addChild(iconText);
+
+    investigatedGraphics.x = hotspot.x;
+    investigatedGraphics.y = hotspot.y;
+    investigatedGraphics.eventMode = 'static';
+    investigatedGraphics.cursor = 'pointer';
+    investigatedGraphics.alpha = 0.7;
+
+    const hintLabel = new PIXI.Text(clue.name, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: GAME_CONFIG.COLORS.SILVER_GRAY,
+      align: 'center',
+      stroke: 0x000000,
+      strokeThickness: 3
+    });
+    hintLabel.anchor.set(0.5, 0);
+    hintLabel.x = hotspot.x + hotspot.width / 2;
+    hintLabel.y = hotspot.y + hotspot.height + 10;
+    hintLabel.alpha = 0;
+    this.container.addChild(hintLabel);
+
+    const subtleAnimation = () => {
+      if (!this.isActive || !this.investigatedHotspots.has(hotspot.id)) return;
+      const scale = 1 + Math.sin(Date.now() / 800) * 0.03;
+      investigatedGraphics.scale.set(scale);
+      requestAnimationFrame(subtleAnimation);
+    };
+    subtleAnimation();
+
+    investigatedGraphics.on('pointerover', () => {
+      hintLabel.alpha = 1;
+      Animator.tween(investigatedGraphics.scale, { x: 1.08, y: 1.08 }, 200);
+      audioModule.playSFX('sfx_click');
+    });
+
+    investigatedGraphics.on('pointerout', () => {
+      hintLabel.alpha = 0;
+      Animator.tween(investigatedGraphics.scale, { x: 1, y: 1 }, 200);
+    });
+
+    investigatedGraphics.on('pointerdown', () => {
+      this.handleInvestigatedHotspotClick(hotspot);
+    });
+
+    this.investigatedHotspots.set(hotspot.id, investigatedGraphics);
+    this.hotspotLabels.set('investigated_' + hotspot.id, hintLabel);
+    this.container.addChild(investigatedGraphics);
+
+    Animator.animate(
+      300,
+      (progress) => {
+        investigatedGraphics.alpha = progress * 0.7;
+        investigatedGraphics.scale.set(0.8 + progress * 0.2);
+      },
+      undefined,
+      Animator.easeOutCubic
+    );
+  }
+
   private removeResetHotspot(hotspotId: string): void {
     const hotspot = this.resetHotspots.get(hotspotId);
     const label = this.hotspotLabels.get('reset_' + hotspotId);
@@ -455,7 +548,9 @@ export class ExhibitionModule {
 
         if (collected) {
           audioModule.playSFX('sfx_collect');
+          store.investigateHotspot(hotspot.id);
           this.removeHotspot(hotspot.id);
+          this.createInvestigatedHotspot(hotspot);
 
           if (clue && clue.chapterId === 'chapter_3') {
             const materialMap: { [key: string]: string } = {
@@ -489,6 +584,252 @@ export class ExhibitionModule {
     }
   }
 
+  private handleInvestigatedHotspotClick(hotspot: Hotspot): void {
+    audioModule.playSFX('sfx_click');
+
+    if (hotspot.type === 'clue') {
+      const clue = store.getClueById(hotspot.targetId);
+      if (clue) {
+        this.showHotspotDetail(hotspot, clue);
+      }
+    }
+  }
+
+  private showHotspotDetail(_hotspot: Hotspot, clue: Clue): void {
+    this.closeDetailPanel();
+
+    const panel = new PIXI.Container();
+    const panelWidth = 500;
+    const panelHeight = clue.supplementaryDescription ? 480 : 380;
+    const panelX = (GAME_CONFIG.DESIGN_WIDTH - panelWidth) / 2;
+    const panelY = (GAME_CONFIG.DESIGN_HEIGHT - panelHeight) / 2;
+
+    const bg = new PIXI.Graphics();
+    bg.beginFill(0x1A0F0A, 0.95);
+    bg.lineStyle(3, GAME_CONFIG.COLORS.AMBER, 0.8);
+    bg.drawRoundedRect(0, 0, panelWidth, panelHeight, 16);
+    bg.endFill();
+    panel.addChild(bg);
+
+    const title = new PIXI.Text(clue.name, {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 28,
+      fill: GAME_CONFIG.COLORS.AMBER,
+      align: 'center'
+    });
+    title.anchor.set(0.5);
+    title.x = panelWidth / 2;
+    title.y = 45;
+    panel.addChild(title);
+
+    const iconText = new PIXI.Text(clue.icon, {
+      fontSize: 48
+    });
+    iconText.anchor.set(0.5);
+    iconText.x = panelWidth / 2;
+    iconText.y = 100;
+    panel.addChild(iconText);
+
+    const descLabel = new PIXI.Text('线索描述', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 16,
+      fill: GAME_CONFIG.COLORS.SILVER_GRAY
+    });
+    descLabel.x = 30;
+    descLabel.y = 150;
+    panel.addChild(descLabel);
+
+    const description = new PIXI.Text(clue.description, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: 0xFFFFFF,
+      align: 'left',
+      wordWrap: true,
+      wordWrapWidth: panelWidth - 60
+    });
+    description.x = 30;
+    description.y = 175;
+    panel.addChild(description);
+
+    let currentY = 260;
+
+    if (clue.supplementaryDescription) {
+      const suppLabel = new PIXI.Text('补充细节', {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: GAME_CONFIG.COLORS.WARM_ORANGE
+      });
+      suppLabel.x = 30;
+      suppLabel.y = currentY;
+      panel.addChild(suppLabel);
+
+      const supplementary = new PIXI.Text(clue.supplementaryDescription, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: GAME_CONFIG.COLORS.WARM_ORANGE,
+        align: 'left',
+        wordWrap: true,
+        wordWrapWidth: panelWidth - 60,
+        lineHeight: 22
+      });
+      supplementary.x = 30;
+      supplementary.y = currentY + 25;
+      panel.addChild(supplementary);
+
+      currentY = 360;
+    }
+
+    if (clue.linkedClueId) {
+      const linkedClue = store.getClueById(clue.linkedClueId);
+      if (linkedClue) {
+        const isLinkedCollected = store.getState().collectedClues.includes(clue.linkedClueId);
+
+        const linkLabel = new PIXI.Text('关联线索', {
+          fontFamily: GAME_CONFIG.FONTS.BODY,
+          fontSize: 16,
+          fill: GAME_CONFIG.COLORS.GOLD
+        });
+        linkLabel.x = 30;
+        linkLabel.y = currentY;
+        panel.addChild(linkLabel);
+
+        const linkButtonBg = new PIXI.Graphics();
+        linkButtonBg.beginFill(isLinkedCollected ? GAME_CONFIG.COLORS.AMBER : 0x333333, 0.3);
+        linkButtonBg.lineStyle(2, isLinkedCollected ? GAME_CONFIG.COLORS.AMBER : 0x666666, 0.8);
+        linkButtonBg.drawRoundedRect(30, currentY + 25, panelWidth - 60, 45, 8);
+        linkButtonBg.endFill();
+        panel.addChild(linkButtonBg);
+
+        const linkButtonText = new PIXI.Text(
+          `${isLinkedCollected ? '🔗' : '🔒'} ${linkedClue.icon} ${linkedClue.name}${isLinkedCollected ? ' →' : ' (未收集)'}`,
+          {
+            fontFamily: GAME_CONFIG.FONTS.BODY,
+            fontSize: 18,
+            fill: isLinkedCollected ? GAME_CONFIG.COLORS.AMBER : 0x888888
+          }
+        );
+        linkButtonText.anchor.set(0, 0.5);
+        linkButtonText.x = 50;
+        linkButtonText.y = currentY + 47;
+        panel.addChild(linkButtonText);
+
+        if (isLinkedCollected) {
+          linkButtonBg.eventMode = 'static';
+          linkButtonBg.cursor = 'pointer';
+
+          linkButtonBg.on('pointerover', () => {
+            linkButtonBg.tint = 0xAAAAAA;
+            audioModule.playSFX('sfx_click');
+          });
+
+          linkButtonBg.on('pointerout', () => {
+            linkButtonBg.tint = 0xFFFFFF;
+          });
+
+          linkButtonBg.on('pointerdown', () => {
+            this.jumpToLinkedClue(clue.linkedClueId!);
+          });
+        }
+      }
+    }
+
+    const closeButton = new PIXI.Graphics();
+    closeButton.beginFill(GAME_CONFIG.COLORS.AMBER, 0.2);
+    closeButton.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.8);
+    closeButton.drawRoundedRect(panelWidth / 2 - 60, panelHeight - 55, 120, 35, 8);
+    closeButton.endFill();
+    panel.addChild(closeButton);
+
+    const closeButtonText = new PIXI.Text('关闭', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 16,
+      fill: GAME_CONFIG.COLORS.AMBER
+    });
+    closeButtonText.anchor.set(0.5);
+    closeButtonText.x = panelWidth / 2;
+    closeButtonText.y = panelHeight - 38;
+    panel.addChild(closeButtonText);
+
+    closeButton.eventMode = 'static';
+    closeButton.cursor = 'pointer';
+
+    closeButton.on('pointerover', () => {
+      closeButton.tint = 0xAAAAAA;
+    });
+
+    closeButton.on('pointerout', () => {
+      closeButton.tint = 0xFFFFFF;
+    });
+
+    closeButton.on('pointerdown', () => {
+      this.closeDetailPanel();
+    });
+
+    panel.x = panelX;
+    panel.y = panelY;
+    panel.alpha = 0;
+
+    this.container.addChild(panel);
+    this.detailPanel = panel;
+
+    Animator.animate(
+      300,
+      (progress) => {
+        panel.alpha = progress;
+        panel.scale.set(0.9 + progress * 0.1);
+      },
+      undefined,
+      Animator.easeOutBack
+    );
+  }
+
+  private jumpToLinkedClue(linkedClueId: string): void {
+    audioModule.playSFX('sfx_unlock');
+    this.closeDetailPanel();
+
+    const targetExhibition = store.getExhibitions().find(e =>
+      e.hotspots.some(h => h.type === 'clue' && h.targetId === linkedClueId)
+    );
+
+    if (targetExhibition && targetExhibition.unlocked) {
+      this.loadExhibition(targetExhibition.id);
+
+      Animator.delay(500).then(() => {
+        const hotspot = targetExhibition.hotspots.find(
+          h => h.type === 'clue' && h.targetId === linkedClueId
+        );
+        if (hotspot) {
+          const clue = store.getClueById(linkedClueId);
+          if (clue) {
+            this.showHotspotDetail(hotspot, clue);
+          }
+        }
+      });
+    } else {
+      this.showLockedHint('该线索所在的展厅尚未解锁。');
+    }
+  }
+
+  private closeDetailPanel(): void {
+    if (this.detailPanel) {
+      const panel = this.detailPanel;
+      Animator.animate(
+        200,
+        (progress) => {
+          panel.alpha = 1 - progress;
+          panel.scale.set(1 - progress * 0.1);
+        },
+        () => {
+          if (panel.parent) {
+            panel.parent.removeChild(panel);
+          }
+          panel.destroy();
+        }
+      );
+      this.detailPanel = null;
+    }
+  }
+
   private removeHotspot(hotspotId: string): void {
     const hotspot = this.hotspots.get(hotspotId);
     const label = this.hotspotLabels.get(hotspotId);
@@ -519,6 +860,8 @@ export class ExhibitionModule {
     this.animations.forEach(cancel => cancel());
     this.animations = [];
 
+    this.closeDetailPanel();
+
     this.hotspots.forEach(h => {
       this.container.removeChild(h);
       h.destroy();
@@ -530,6 +873,12 @@ export class ExhibitionModule {
       h.destroy();
     });
     this.resetHotspots.clear();
+
+    this.investigatedHotspots.forEach(h => {
+      this.container.removeChild(h);
+      h.destroy();
+    });
+    this.investigatedHotspots.clear();
 
     this.hotspotLabels.forEach(l => {
       this.container.removeChild(l);
