@@ -15,6 +15,7 @@ declare global {
       store?: typeof store;
       clueBackpack?: typeof clueBackpackDebug;
       testAudio?: () => string;
+      testSceneAudio?: () => string;
       simulateFullGame?: () => string;
       collectAllClues?: () => string;
       solveAllMechanisms?: () => string;
@@ -262,6 +263,104 @@ window.addEventListener('load', () => {
       }, 18700);
 
       return '完整流程模拟已启动，预计19秒完成，请查看控制台';
+    },
+
+    testSceneAudio: () => {
+      console.log('=== 场景音频控制测试 ===');
+      const state = audioModule.getSceneState();
+      console.log('当前场景状态:', state);
+      console.log('当前氛围:', audioModule.getCurrentAtmosphere());
+      console.log('环境音音量:', audioModule.getAmbientVolume());
+      console.log('环境音静音:', audioModule.getAmbientMuted());
+
+      console.log('\n--- 测试展厅切换音频 ---');
+      setTimeout(() => {
+        store.setCurrentExhibition('exhibition_1');
+        eventBus.emit('exhibition:enter', { exhibitionId: 'exhibition_1' });
+        console.log('进入: 博物馆大厅 (exhibition_1)');
+        console.log('氛围:', audioModule.getCurrentAtmosphere());
+        console.log('BGM:', audioModule['currentBgmName']);
+        console.log('环境音轨道:', audioModule.getSceneState().activeAmbientTracks);
+      }, 500);
+
+      setTimeout(() => {
+        store.setCurrentExhibition('exhibition_2');
+        eventBus.emit('exhibition:enter', { exhibitionId: 'exhibition_2' });
+        console.log('\n进入: 西侧展厅 (exhibition_2)');
+        console.log('氛围:', audioModule.getCurrentAtmosphere());
+        console.log('BGM:', audioModule['currentBgmName']);
+        console.log('环境音轨道:', audioModule.getSceneState().activeAmbientTracks);
+      }, 3000);
+
+      setTimeout(() => {
+        console.log('\n--- 测试氛围切换 ---');
+        audioModule.setAtmosphere('tense');
+        console.log('切换氛围到: tense (紧张)');
+        console.log('当前氛围:', audioModule.getCurrentAtmosphere());
+      }, 5500);
+
+      setTimeout(() => {
+        console.log('\n--- 测试机关交互音频 ---');
+        eventBus.emit('mechanism:open', { mechanismId: 'mech_1' });
+        console.log('打开机关: mech_1 (古老密码锁)');
+        console.log('解谜阶段:', audioModule.getSceneState().currentPuzzlePhase);
+        console.log('活动机关:', audioModule.getSceneState().activeMechanismId);
+      }, 8000);
+
+      setTimeout(() => {
+        store.solveMechanism('mech_1');
+        eventBus.emit('mechanism:solve', { mechanismId: 'mech_1' });
+        console.log('\n解开机关: mech_1');
+        console.log('解谜阶段:', audioModule.getSceneState().currentPuzzlePhase);
+      }, 10000);
+
+      setTimeout(() => {
+        console.log('\n--- 测试夜间模式音频 ---');
+        store.setExhibitionMode('night');
+        console.log('切换到夜间模式');
+        console.log('BGM:', audioModule['currentBgmName']);
+        console.log('环境音轨道:', audioModule.getSceneState().activeAmbientTracks);
+      }, 13000);
+
+      setTimeout(() => {
+        store.setExhibitionMode('day');
+        console.log('\n切换回日间模式');
+        console.log('BGM:', audioModule['currentBgmName']);
+      }, 15500);
+
+      setTimeout(() => {
+        console.log('\n--- 测试章节音频 ---');
+        eventBus.emit('chapter:enter', { chapterId: 'chapter_2' });
+        console.log('进入章节: chapter_2');
+        console.log('剧情节点:', audioModule.getSceneState().currentStoryNode);
+      }, 18000);
+
+      setTimeout(() => {
+        store.completeChapter('chapter_2');
+        eventBus.emit('chapter:complete', { chapterId: 'chapter_2' });
+        console.log('\n完成章节: chapter_2');
+        console.log('剧情节点:', audioModule.getSceneState().currentStoryNode);
+      }, 20000);
+
+      setTimeout(() => {
+        console.log('\n--- 测试环境音控制 ---');
+        const currentVol = audioModule.getAmbientVolume();
+        audioModule.setAmbientVolume(0.1);
+        console.log('降低环境音音量到 0.1');
+        console.log('环境音音量:', audioModule.getAmbientVolume());
+
+        setTimeout(() => {
+          audioModule.setAmbientVolume(currentVol);
+          console.log('恢复环境音音量');
+        }, 1000);
+      }, 22500);
+
+      setTimeout(() => {
+        console.log('\n=== 场景音频测试完成 ===');
+        console.log('最终场景状态:', audioModule.getSceneState());
+      }, 25000);
+
+      return '场景音频测试已启动，预计25秒完成，请查看控制台';
     },
 
     reset: () => {

@@ -878,3 +878,87 @@ export interface MemorySortSubmitResult {
   canSkip?: boolean;
   skipCost?: number;
 }
+
+export type ExhibitionAtmosphere = 
+  | 'serene' 
+  | 'mysterious' 
+  | 'tense' 
+  | 'nostalgic' 
+  | 'grand' 
+  | 'warm' 
+  | 'eerie' 
+  | 'hopeful' 
+  | 'triumphant' 
+  | 'melancholic';
+
+export type PuzzlePhase = 
+  | 'exploration' 
+  | 'investigation' 
+  | 'puzzle_active' 
+  | 'puzzle_solved' 
+  | 'memory_reconstruction' 
+  | 'branch_choice';
+
+export type StoryNodeType = 
+  | 'chapter_start' 
+  | 'chapter_end' 
+  | 'key_moment' 
+  | 'memory_complete' 
+  | 'ending_reveal' 
+  | 'power_outage' 
+  | 'power_restored';
+
+export interface AudioLayerConfig {
+  bgm?: string;
+  ambient?: string[];
+  sfx?: string;
+  volume?: {
+    bgm?: number;
+    ambient?: number;
+    sfx?: number;
+  };
+  fadeDuration?: number;
+}
+
+export interface SceneAudioConfig {
+  atmosphere: ExhibitionAtmosphere;
+  audio: AudioLayerConfig;
+}
+
+export interface PuzzleAudioConfig {
+  phase: PuzzlePhase;
+  audio: AudioLayerConfig;
+}
+
+export interface StoryAudioConfig {
+  nodeType: StoryNodeType;
+  audio: AudioLayerConfig;
+}
+
+export interface ExhibitionAudioMap {
+  [exhibitionId: string]: {
+    default: SceneAudioConfig;
+    atmospheres?: Partial<Record<ExhibitionAtmosphere, SceneAudioConfig>>;
+  };
+}
+
+export interface ChapterAudioMap {
+  [chapterId: string]: {
+    storyNodes: Partial<Record<StoryNodeType, StoryAudioConfig>>;
+  };
+}
+
+export interface MechanismAudioMap {
+  [mechanismId: string]: {
+    phases: Partial<Record<PuzzlePhase, PuzzleAudioConfig>>;
+  };
+}
+
+export interface SceneAudioState {
+  currentExhibition: string;
+  currentAtmosphere: ExhibitionAtmosphere;
+  currentPuzzlePhase: PuzzlePhase | null;
+  currentStoryNode: StoryNodeType | null;
+  activeAmbientTracks: string[];
+  activeMechanismId: string | null;
+}

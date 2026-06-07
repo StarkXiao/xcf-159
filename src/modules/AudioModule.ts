@@ -1,7 +1,24 @@
 import { Howl } from 'howler';
 import { store } from '../game/Store';
 import { eventBus } from '../game/EventBus';
-import { GameSettings, AudioRecording } from '../game/types';
+import {
+  GameSettings,
+  AudioRecording,
+  SceneAudioState,
+  ExhibitionAtmosphere,
+  PuzzlePhase,
+  StoryNodeType,
+  AudioLayerConfig
+} from '../game/types';
+import {
+  EXHIBITION_AUDIO,
+  CHAPTER_AUDIO,
+  MECHANISM_AUDIO,
+  POWER_OUTAGE_AUDIO,
+  NIGHT_MODE_AUDIO,
+  AMBIENT_FREQUENCY_MAP,
+  AMBIENT_DURATION_MAP
+} from '../game/data/sceneAudio';
 
 export class AudioModule {
   private bgm: Howl | null = null;
@@ -19,6 +36,22 @@ export class AudioModule {
   private bgmWasPlaying: boolean = false;
   private bgmVolumeBeforeVoice: number = 0.5;
 
+  private ambientCache: Map<string, Howl> = new Map();
+  private activeAmbientTracks: Map<string, Howl> = new Map();
+  private ambientVolume: number = 0.3;
+  private ambientMuted: boolean = false;
+
+  private sceneState: SceneAudioState = {
+    currentExhibition: '',
+    currentAtmosphere: 'grand',
+    currentPuzzlePhase: null,
+    currentStoryNode: null,
+    activeAmbientTracks: [],
+    activeMechanismId: null
+  };
+
+  private isNightModeActive: boolean = false;
+
   constructor() {
     eventBus.on('audio:play', this.handlePlayAudio.bind(this));
     eventBus.on('settings:update', this.handleSettingsUpdate.bind(this));
@@ -29,6 +62,8 @@ export class AudioModule {
     this.bgmMuted = settings.bgmMuted;
     this.sfxVolume = settings.sfxVolume;
     this.sfxMuted = settings.sfxMuted;
+
+    this.setupSceneEventListeners();
   }
 
   private handleAutoPlayRecording(data: { recordingId: string }): void {
@@ -64,6 +99,16 @@ export class AudioModule {
     this.sfxCache.forEach(sfx => {
       sfx.volume(this.sfxVolume);
       sfx.mute(this.sfxMuted);
+    });
+
+    this.ambientCache.forEach(ambient => {
+      ambient.volume(this.ambientVolume);
+      ambient.mute(this.ambientMuted);
+    });
+
+    this.activeAmbientTracks.forEach(ambient => {
+      ambient.volume(this.ambientMuted ? 0 : this.ambientVolume);
+      ambient.mute(this.ambientMuted);
     });
   }
 
@@ -113,6 +158,45 @@ export class AudioModule {
                       name === 'bgm_emergency' ? 130 :
                       name === 'bgm_blackout_warning' ? 150 :
                       name === 'bgm_blackout_dark' ? 70 :
+                      name === 'bgm_melancholy' ? 165 :
+                      name === 'bgm_warm' ? 247 :
+                      name === 'bgm_hopeful' ? 294 :
+                      name === 'bgm_tense' ? 196 :
+                      name === 'bgm_restoration' ? 233 :
+                      name === 'bgm_triumphant' ? 330 :
+                      name === 'bgm_history' ? 196 :
+                      name === 'bgm_music' ? 262 :
+                      name === 'bgm_craft' ? 220 :
+                      name === 'bgm_art' ? 277 :
+                      name === 'bgm_gallery' ? 185 :
+                      name === 'bgm_creative' ? 311 :
+                      name === 'bgm_authenticity' ? 175 :
+                      name === 'bgm_revelation' ? 349 :
+                      name === 'bgm_corridor_entrance' ? 165 :
+                      name === 'bgm_childhood' ? 392 :
+                      name === 'bgm_youth' ? 233 :
+                      name === 'bgm_present' ? 294 :
+                      name === 'bgm_eternal' ? 330 :
+                      name === 'bgm_puzzle' ? 220 :
+                      name === 'bgm_memory_puzzle' ? 247 :
+                      name === 'bgm_memory_reconstruct' ? 262 :
+                      name === 'bgm_restoration_complete' ? 349 :
+                      name === 'bgm_chapter_complete' ? 330 :
+                      name === 'bgm_dual_hall_complete' ? 370 :
+                      name === 'bgm_truth_revealed' ? 392 :
+                      name === 'bgm_memory_complete' ? 415 :
+                      name === 'bgm_memory_solved' ? 349 :
+                      name === 'bgm_ending' ? 330 :
+                      name === 'bgm_linked_puzzle' ? 233 :
+                      name === 'bgm_final_puzzle' ? 262 :
+                      name === 'bgm_authenticity_puzzle' ? 208 :
+                      name === 'bgm_investigation' ? 185 :
+                      name === 'bgm_revelation_puzzle' ? 247 :
+                      name === 'bgm_corridor_puzzle' ? 220 :
+                      name === 'bgm_memory_final' ? 294 :
+                      name === 'bgm_choice' ? 208 :
+                      name === 'bgm_final_choice' ? 233 :
+                      name === 'bgm_ending_puzzle' ? 262 :
                       name === 'sfx_click' ? 800 :
                       name === 'sfx_collect' ? 600 :
                       name === 'sfx_success' ? 523 :
@@ -143,13 +227,61 @@ export class AudioModule {
                       name === 'sfx_creak' ? 100 :
                       name === 'sfx_distant_thud' ? 60 :
                       name === 'sfx_whisper_echo' ? 170 :
-                      name === 'sfx_power_flicker' ? 200 : 440;
+                      name === 'sfx_power_flicker' ? 200 :
+                      name === 'sfx_chapter_start' ? 523 :
+                      name === 'sfx_door_open' ? 440 :
+                      name === 'sfx_memory' ? 659 :
+                      name === 'sfx_memory_complete' ? 784 :
+                      name === 'sfx_double_door' ? 392 :
+                      name === 'sfx_magnify' ? 880 :
+                      name === 'sfx_corridor_open' ? 587 :
+                      name === 'sfx_link_unlock' ? 494 :
+                      name === 'sfx_choice_made' ? 523 : 440;
 
     const duration = name === 'bgm_night' ? 12 :
                      name === 'bgm_power_outage' ? 15 :
                      name === 'bgm_emergency' ? 10 :
                      name === 'bgm_blackout_warning' ? 8 :
                      name === 'bgm_blackout_dark' ? 12 :
+                     name === 'bgm_melancholy' ? 10 :
+                     name === 'bgm_warm' ? 10 :
+                     name === 'bgm_hopeful' ? 12 :
+                     name === 'bgm_tense' ? 8 :
+                     name === 'bgm_restoration' ? 12 :
+                     name === 'bgm_triumphant' ? 12 :
+                     name === 'bgm_history' ? 12 :
+                     name === 'bgm_music' ? 10 :
+                     name === 'bgm_craft' ? 12 :
+                     name === 'bgm_art' ? 10 :
+                     name === 'bgm_gallery' ? 10 :
+                     name === 'bgm_creative' ? 12 :
+                     name === 'bgm_authenticity' ? 10 :
+                     name === 'bgm_revelation' ? 12 :
+                     name === 'bgm_corridor_entrance' ? 10 :
+                     name === 'bgm_childhood' ? 10 :
+                     name === 'bgm_youth' ? 10 :
+                     name === 'bgm_present' ? 12 :
+                     name === 'bgm_eternal' ? 15 :
+                     name === 'bgm_puzzle' ? 8 :
+                     name === 'bgm_memory_puzzle' ? 10 :
+                     name === 'bgm_memory_reconstruct' ? 12 :
+                     name === 'bgm_restoration_complete' ? 12 :
+                     name === 'bgm_chapter_complete' ? 12 :
+                     name === 'bgm_dual_hall_complete' ? 15 :
+                     name === 'bgm_truth_revealed' ? 15 :
+                     name === 'bgm_memory_complete' ? 15 :
+                     name === 'bgm_memory_solved' ? 12 :
+                     name === 'bgm_ending' ? 20 :
+                     name === 'bgm_linked_puzzle' ? 10 :
+                     name === 'bgm_final_puzzle' ? 12 :
+                     name === 'bgm_authenticity_puzzle' ? 10 :
+                     name === 'bgm_investigation' ? 8 :
+                     name === 'bgm_revelation_puzzle' ? 10 :
+                     name === 'bgm_corridor_puzzle' ? 10 :
+                     name === 'bgm_memory_final' ? 15 :
+                     name === 'bgm_choice' ? 8 :
+                     name === 'bgm_final_choice' ? 10 :
+                     name === 'bgm_ending_puzzle' ? 12 :
                      name === 'sfx_footsteps' ? 0.6 :
                      name === 'sfx_whisper' ? 1.2 :
                      name === 'sfx_glow' ? 0.8 :
@@ -176,6 +308,15 @@ export class AudioModule {
                      name === 'sfx_error_partial' ? 0.6 :
                      name === 'sfx_error_wrong' ? 0.8 :
                      name === 'sfx_error_exhausted' ? 1.2 :
+                     name === 'sfx_chapter_start' ? 1.0 :
+                     name === 'sfx_door_open' ? 0.8 :
+                     name === 'sfx_memory' ? 1.2 :
+                     name === 'sfx_memory_complete' ? 1.5 :
+                     name === 'sfx_double_door' ? 1.0 :
+                     name === 'sfx_magnify' ? 0.6 :
+                     name === 'sfx_corridor_open' ? 1.5 :
+                     name === 'sfx_link_unlock' ? 0.8 :
+                     name === 'sfx_choice_made' ? 1.0 :
                      loop ? 8 : 0.3;
 
     return new Howl({
@@ -455,15 +596,450 @@ export class AudioModule {
     return this.voiceVolume;
   }
 
+  private setupSceneEventListeners(): void {
+    eventBus.on('exhibition:enter', (data: { exhibitionId: string }) => {
+      this.handleExhibitionEnter(data.exhibitionId);
+    });
+
+    eventBus.on('chapter:enter', (data: { chapterId: string }) => {
+      this.handleStoryNode(data.chapterId, 'chapter_start');
+    });
+
+    eventBus.on('chapter:complete', (data: { chapterId: string }) => {
+      this.handleStoryNode(data.chapterId, 'chapter_end');
+    });
+
+    eventBus.on('mechanism:open', (data: { mechanismId: string }) => {
+      this.handlePuzzlePhase(data.mechanismId, 'puzzle_active');
+    });
+
+    eventBus.on('mechanism:solve', (data: { mechanismId: string }) => {
+      this.handlePuzzlePhase(data.mechanismId, 'puzzle_solved');
+    });
+
+    eventBus.on('memory:start', (data: { chapterId: string }) => {
+      const chapter = store.getChapterById(data.chapterId);
+      if (chapter && chapter.memoryPhases) {
+        const firstPhaseExhibition = chapter.memoryPhases[0]?.exhibitionId;
+        if (firstPhaseExhibition) {
+          const mech = store.getMechanisms().find(m => 
+            store.getExhibitionById(firstPhaseExhibition)?.hotspots.some(h => 
+              h.type === 'mechanism' && h.targetId === m.id && m.type === 'memory_sort'
+            )
+          );
+          if (mech) {
+            this.handlePuzzlePhase(mech.id, 'memory_reconstruction');
+          }
+        }
+      }
+    });
+
+    eventBus.on('memory:complete', (data: { chapterId: string; success: boolean }) => {
+      this.handleStoryNode(data.chapterId, 'memory_complete');
+    });
+
+    eventBus.on('poweroutage:start', () => {
+      this.handlePowerOutage('warning');
+    });
+
+    eventBus.on('poweroutage:event-trigger', (data: { eventId: string; event: any }) => {
+      if (data.event.phase === 'outage') {
+        this.handlePowerOutage('outage');
+      } else if (data.event.phase === 'recovery') {
+        this.handlePowerOutage('recovery');
+      }
+    });
+
+    eventBus.on('poweroutage:end', () => {
+      this.handlePowerOutage('complete');
+    });
+
+    eventBus.on('exhibition:mode-change', (data: { mode: string }) => {
+      this.handleNightModeChange(data.mode === 'night');
+    });
+
+    eventBus.on('game:reset', () => {
+      this.resetSceneAudio();
+    });
+
+    const currentExhibition = store.getCurrentExhibition();
+    if (currentExhibition) {
+      this.sceneState.currentExhibition = currentExhibition.id;
+      this.sceneState.currentAtmosphere = EXHIBITION_AUDIO[currentExhibition.id]?.default.atmosphere || 'grand';
+    }
+  }
+
+  private handleExhibitionEnter(exhibitionId: string): void {
+    if (this.sceneState.currentExhibition === exhibitionId) return;
+
+    this.sceneState.currentExhibition = exhibitionId;
+    this.sceneState.currentPuzzlePhase = null;
+    this.sceneState.activeMechanismId = null;
+
+    const exhibitionConfig = EXHIBITION_AUDIO[exhibitionId];
+    if (!exhibitionConfig) return;
+
+    const audioConfig = this.isNightModeActive
+      ? { ...NIGHT_MODE_AUDIO, fadeDuration: 1500 }
+      : exhibitionConfig.default.audio;
+
+    this.sceneState.currentAtmosphere = exhibitionConfig.default.atmosphere;
+
+    this.applyAudioLayerConfig(audioConfig);
+    eventBus.emit('sceneaudio:exhibition-changed', { exhibitionId, atmosphere: this.sceneState.currentAtmosphere });
+  }
+
+  private handleStoryNode(chapterId: string, nodeType: StoryNodeType): void {
+    this.sceneState.currentStoryNode = nodeType;
+
+    const chapterConfig = CHAPTER_AUDIO[chapterId];
+    const storyConfig = chapterConfig?.storyNodes[nodeType];
+
+    if (storyConfig) {
+      this.applyAudioLayerConfig(storyConfig.audio, true);
+      eventBus.emit('sceneaudio:story-node', { chapterId, nodeType });
+    }
+
+    if (nodeType === 'chapter_end') {
+      setTimeout(() => {
+        this.sceneState.currentStoryNode = null;
+      }, storyConfig?.audio.fadeDuration || 2000);
+    }
+  }
+
+  private handlePuzzlePhase(mechanismId: string, phase: PuzzlePhase): void {
+    this.sceneState.currentPuzzlePhase = phase;
+    this.sceneState.activeMechanismId = mechanismId;
+
+    const mechanismConfig = MECHANISM_AUDIO[mechanismId];
+    const phaseConfig = mechanismConfig?.phases[phase];
+
+    if (phaseConfig) {
+      this.applyAudioLayerConfig(phaseConfig.audio, phase !== 'puzzle_solved');
+      eventBus.emit('sceneaudio:puzzle-phase', { mechanismId, phase });
+    }
+
+    if (phase === 'puzzle_solved') {
+      setTimeout(() => {
+        this.sceneState.currentPuzzlePhase = null;
+        this.sceneState.activeMechanismId = null;
+        this.restoreExhibitionAudio();
+      }, phaseConfig?.audio.fadeDuration || 1500);
+    }
+  }
+
+  private handlePowerOutage(phase: 'warning' | 'outage' | 'recovery' | 'complete'): void {
+    const audioConfig = POWER_OUTAGE_AUDIO[phase];
+    if (audioConfig) {
+      this.applyAudioLayerConfig(audioConfig, true);
+      eventBus.emit('sceneaudio:power-outage', { phase });
+    }
+
+    if (phase === 'complete') {
+      setTimeout(() => {
+        this.restoreExhibitionAudio();
+      }, 1000);
+    }
+  }
+
+  private handleNightModeChange(isNight: boolean): void {
+    this.isNightModeActive = isNight;
+
+    if (isNight) {
+      this.applyAudioLayerConfig(NIGHT_MODE_AUDIO);
+    } else {
+      this.restoreExhibitionAudio();
+    }
+
+    eventBus.emit('sceneaudio:night-mode', { isNight });
+  }
+
+  private restoreExhibitionAudio(): void {
+    const exhibitionId = this.sceneState.currentExhibition;
+    const exhibitionConfig = EXHIBITION_AUDIO[exhibitionId];
+
+    if (!exhibitionConfig) return;
+
+    const audioConfig = this.isNightModeActive
+      ? { ...NIGHT_MODE_AUDIO, fadeDuration: 1000 }
+      : exhibitionConfig.default.audio;
+
+    this.applyAudioLayerConfig(audioConfig);
+  }
+
+  private applyAudioLayerConfig(config: AudioLayerConfig, temporary: boolean = false): void {
+    const fadeDuration = config.fadeDuration || 1000;
+    const bgmVol = (config.volume?.bgm ?? 0.4) * this.bgmVolume;
+    const sfxVol = (config.volume?.sfx ?? 0.7) * this.sfxVolume;
+    const ambientVol = (config.volume?.ambient ?? 0.3) * this.ambientVolume;
+
+    if (config.bgm && config.bgm !== this.currentBgmName) {
+      this.crossfadeBGM(config.bgm, bgmVol, fadeDuration);
+    } else if (config.bgm && this.bgm) {
+      const targetVol = this.bgmMuted ? 0 : bgmVol;
+      this.bgm.fade(this.bgm.volume() as number, targetVol, fadeDuration);
+    }
+
+    if (config.sfx) {
+      this.playSFXWithVolume(config.sfx, sfxVol);
+    }
+
+    if (config.ambient && config.ambient.length > 0) {
+      this.updateAmbientTracks(config.ambient, ambientVol, fadeDuration);
+    } else if (!temporary && this.activeAmbientTracks.size > 0) {
+      this.stopAllAmbient(fadeDuration);
+    }
+  }
+
+  private crossfadeBGM(newBgmName: string, targetVolume: number, duration: number): void {
+    const oldBgm = this.bgm;
+    const oldBgmName = this.currentBgmName;
+
+    const finalVolume = this.bgmMuted ? 0 : targetVolume;
+
+    const newBgm = this.createAudio(newBgmName, true, 0);
+    newBgm.mute(this.bgmMuted);
+    newBgm.once('play', () => {
+      newBgm.fade(0, finalVolume, duration);
+    });
+    newBgm.play();
+
+    if (oldBgm && oldBgmName) {
+      oldBgm.fade(oldBgm.volume() as number, 0, duration);
+      setTimeout(() => {
+        oldBgm.stop();
+        oldBgm.unload();
+      }, duration);
+    }
+
+    this.bgm = newBgm;
+    this.currentBgmName = newBgmName;
+  }
+
+  private updateAmbientTracks(trackNames: string[], targetVolume: number, fadeDuration: number): void {
+    const tracksToAdd = trackNames.filter(name => !this.activeAmbientTracks.has(name));
+    const tracksToRemove = Array.from(this.activeAmbientTracks.keys()).filter(name => !trackNames.includes(name));
+
+    tracksToRemove.forEach(name => {
+      const track = this.activeAmbientTracks.get(name);
+      if (track) {
+        track.fade(track.volume() as number, 0, fadeDuration);
+        setTimeout(() => {
+          track.stop();
+          this.activeAmbientTracks.delete(name);
+        }, fadeDuration);
+      }
+    });
+
+    tracksToAdd.forEach(name => {
+      const track = this.playAmbient(name, targetVolume);
+      if (track) {
+        this.activeAmbientTracks.set(name, track);
+      }
+    });
+
+    this.sceneState.activeAmbientTracks = trackNames;
+  }
+
+  playAmbient(name: string, volume?: number): Howl | null {
+    if (this.ambientMuted) return null;
+
+    const vol = this.ambientMuted ? 0 : (volume ?? this.ambientVolume);
+    let ambient = this.ambientCache.get(name);
+
+    if (!ambient) {
+      ambient = this.createAmbientAudio(name, vol);
+      ambient.mute(this.ambientMuted);
+      this.ambientCache.set(name, ambient);
+    } else {
+      ambient.volume(vol);
+      ambient.mute(this.ambientMuted);
+    }
+
+    if (!ambient.playing()) {
+      ambient.play();
+    }
+
+    return ambient;
+  }
+
+  stopAmbient(name: string, fadeDuration: number = 500): void {
+    const track = this.activeAmbientTracks.get(name);
+    if (track) {
+      track.fade(track.volume() as number, 0, fadeDuration);
+      setTimeout(() => {
+        track.stop();
+        this.activeAmbientTracks.delete(name);
+      }, fadeDuration);
+    }
+  }
+
+  stopAllAmbient(fadeDuration: number = 500): void {
+    this.activeAmbientTracks.forEach((track) => {
+      track.fade(track.volume() as number, 0, fadeDuration);
+    });
+    setTimeout(() => {
+      this.activeAmbientTracks.forEach(track => track.stop());
+      this.activeAmbientTracks.clear();
+      this.sceneState.activeAmbientTracks = [];
+    }, fadeDuration);
+  }
+
+  private createAmbientAudio(name: string, volume: number): Howl {
+    const frequency = AMBIENT_FREQUENCY_MAP[name] || 220;
+    const duration = AMBIENT_DURATION_MAP[name] || 3;
+
+    return new Howl({
+      src: [this.generateAmbientTone(frequency, duration, name)],
+      loop: true,
+      volume,
+      format: ['wav']
+    });
+  }
+
+  private generateAmbientTone(frequency: number, duration: number, name: string): string {
+    const sampleRate = 44100;
+    const numSamples = Math.floor(sampleRate * duration);
+    const buffer = new AudioContext().createBuffer(1, numSamples, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      let sample = 0;
+
+      if (name.includes('wind') || name.includes('hall') || name.includes('room')) {
+        const noise = (Math.random() * 2 - 1) * 0.3;
+        const filteredNoise = noise * Math.exp(-t * 0.5);
+        const drift = Math.sin(2 * Math.PI * (frequency * 0.5 + Math.sin(t * 0.2) * 10) * t) * 0.1;
+        sample = filteredNoise + drift;
+      } else if (name.includes('cricket')) {
+        const chirpRate = 4;
+        const chirpPhase = (t * chirpRate) % 1;
+        const chirpEnvelope = Math.exp(-chirpPhase * 10) * (1 - chirpPhase);
+        sample = Math.sin(2 * Math.PI * frequency * t) * chirpEnvelope * 0.3;
+      } else if (name.includes('heartbeat')) {
+        const beatPhase = (t / 1.2) % 1;
+        const beatEnvelope = Math.exp(-beatPhase * 8) * (1 - beatPhase * 0.5);
+        sample = Math.sin(2 * Math.PI * frequency * t) * beatEnvelope * 0.4;
+      } else if (name.includes('ticktock')) {
+        const tickPhase = (t / 0.4) % 1;
+        const tickEnvelope = Math.exp(-tickPhase * 20);
+        sample = Math.sin(2 * Math.PI * frequency * t) * tickEnvelope * 0.25;
+      } else if (name.includes('memory') || name.includes('glow') || name.includes('light')) {
+        const shimmer = Math.sin(2 * Math.PI * (frequency * 1.5) * t) * 0.1;
+        const base = Math.sin(2 * Math.PI * frequency * t) * 0.2;
+        const slowMod = 1 + Math.sin(2 * Math.PI * 0.3 * t) * 0.3;
+        sample = (base + shimmer) * slowMod;
+      } else if (name.includes('darkness') || name.includes('silent')) {
+        const lowDrone = Math.sin(2 * Math.PI * frequency * t) * 0.2;
+        const noise = (Math.random() * 2 - 1) * 0.05;
+        sample = lowDrone + noise;
+      } else if (name.includes('brush') || name.includes('canvas')) {
+        const noise = (Math.random() * 2 - 1) * 0.4;
+        const envelope = Math.sin(t * Math.PI / duration);
+        sample = noise * envelope * 0.3;
+      } else {
+        const tone = Math.sin(2 * Math.PI * frequency * t) * 0.25;
+        const overtone = Math.sin(2 * Math.PI * frequency * 1.5 * t) * 0.1;
+        const tremolo = 1 + Math.sin(2 * Math.PI * 2 * t) * 0.1;
+        sample = (tone + overtone) * tremolo;
+      }
+
+      data[i] = sample;
+    }
+
+    const wav = this.bufferToWav(buffer);
+    return 'data:audio/wav;base64,' + btoa(wav);
+  }
+
+  private playSFXWithVolume(name: string, volume: number): void {
+    if (this.sfxMuted) return;
+
+    let sfx = this.sfxCache.get(name);
+    if (!sfx) {
+      sfx = this.createAudio(name, false, volume);
+      sfx.mute(this.sfxMuted);
+      this.sfxCache.set(name, sfx);
+    } else {
+      sfx.volume(volume);
+    }
+    sfx.play();
+  }
+
+  setAtmosphere(atmosphere: ExhibitionAtmosphere): void {
+    const exhibitionId = this.sceneState.currentExhibition;
+    const exhibitionConfig = EXHIBITION_AUDIO[exhibitionId];
+
+    if (!exhibitionConfig) return;
+
+    const atmosphereConfig = exhibitionConfig.atmospheres?.[atmosphere];
+    if (atmosphereConfig) {
+      this.sceneState.currentAtmosphere = atmosphere;
+      this.applyAudioLayerConfig(atmosphereConfig.audio);
+      eventBus.emit('sceneaudio:atmosphere-changed', { atmosphere });
+    }
+  }
+
+  getSceneState(): SceneAudioState {
+    return { ...this.sceneState };
+  }
+
+  getCurrentAtmosphere(): ExhibitionAtmosphere {
+    return this.sceneState.currentAtmosphere;
+  }
+
+  setAmbientVolume(volume: number): void {
+    this.ambientVolume = volume;
+    this.activeAmbientTracks.forEach(track => {
+      if (!this.ambientMuted) {
+        track.volume(volume);
+      }
+    });
+  }
+
+  getAmbientVolume(): number {
+    return this.ambientVolume;
+  }
+
+  toggleAmbient(): boolean {
+    this.ambientMuted = !this.ambientMuted;
+    this.activeAmbientTracks.forEach(track => {
+      track.mute(this.ambientMuted);
+    });
+    return !this.ambientMuted;
+  }
+
+  getAmbientMuted(): boolean {
+    return this.ambientMuted;
+  }
+
+  resetSceneAudio(): void {
+    this.isNightModeActive = false;
+    this.sceneState = {
+      currentExhibition: '',
+      currentAtmosphere: 'grand',
+      currentPuzzlePhase: null,
+      currentStoryNode: null,
+      activeAmbientTracks: [],
+      activeMechanismId: null
+    };
+    this.stopAllAmbient();
+    this.stopBGM();
+  }
+
   destroy(): void {
     this.stopBGM();
     this.stopVoice();
+    this.stopAllAmbient();
     this.sfxCache.forEach(sfx => sfx.unload());
     this.sfxCache.clear();
     this.voiceCache.forEach(voice => voice.unload());
     this.voiceCache.clear();
+    this.ambientCache.forEach(ambient => ambient.unload());
+    this.ambientCache.clear();
     eventBus.off('audio:play', this.handlePlayAudio.bind(this));
     eventBus.off('settings:update', this.handleSettingsUpdate.bind(this));
+    eventBus.off('recording:auto-play', this.handleAutoPlayRecording.bind(this));
   }
 }
 
