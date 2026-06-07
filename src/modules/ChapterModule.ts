@@ -1068,6 +1068,7 @@ export class ChapterModule {
     eventBus.emit('progress:chapter-complete', { chapterId: data.chapterId });
     this.showChapterComplete(data.chapterId, () => {
       this.showExhibitionUnlockAnimation(data.chapterId, () => {
+        store.clearNewlyUnlockedExhibitions();
         this.showArchivePrompt(data.chapterId, () => {
           this.showChapterKeyPointReview(data.chapterId, () => {
             this.showNextStepGuide(data.chapterId, () => {
@@ -1443,7 +1444,7 @@ export class ChapterModule {
           () => {
             this.container.removeChild(reviewPanel);
             reviewPanel.destroy();
-            eventBus.emit('archive:open');
+            eventBus.emit('archive:open', { chapterId });
             onComplete();
           }
         );
@@ -2187,7 +2188,7 @@ export class ChapterModule {
         () => {
           this.container.removeChild(guidePanel);
           guidePanel.destroy();
-          eventBus.emit('archive:open');
+          eventBus.emit('archive:open', { chapterId });
           onComplete();
         }
       );

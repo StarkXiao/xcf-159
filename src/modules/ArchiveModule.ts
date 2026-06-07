@@ -32,6 +32,7 @@ export class ArchiveModule {
     eventBus.on('memory:complete', this.handleMemoryComplete.bind(this));
     eventBus.on('voice:play', this.handleVoicePlay.bind(this));
     eventBus.on('voice:end', this.handleVoiceEnd.bind(this));
+    eventBus.on('archive:open', this.handleArchiveOpen.bind(this));
   }
 
   private createArchiveToggle(): PIXI.Graphics {
@@ -993,6 +994,20 @@ export class ArchiveModule {
           this.isArchiveOpen = true;
         }
       });
+    }
+  }
+
+  private handleArchiveOpen(_data?: { chapterId?: string }): void {
+    if (this.isPlayerOpen) {
+      this.closePlayer();
+    }
+    if (_data?.chapterId) {
+      this.currentChapter = _data.chapterId;
+      this.currentTab = 'archive';
+    }
+    if (!this.isArchiveOpen) {
+      this.isArchiveOpen = true;
+      this.showArchivePanel();
     }
   }
 

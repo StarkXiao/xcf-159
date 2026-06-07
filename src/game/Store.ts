@@ -35,6 +35,7 @@ class Store {
   private timedMechanisms: TimedMechanism[];
   private powerOutageEvents: PowerOutageEvent[];
   private chapterStartTime: number = Date.now();
+  private newlyUnlockedExhibitions: string[] = [];
 
   constructor() {
     const savedState = this.loadFromStorage();
@@ -666,6 +667,9 @@ class Store {
 
     exh.unlocked = true;
     this.state.unlockedExhibitions.push(exhibitionId);
+    if (!this.newlyUnlockedExhibitions.includes(exhibitionId)) {
+      this.newlyUnlockedExhibitions.push(exhibitionId);
+    }
 
     eventBus.emit('exhibition:unlock', { exhibitionId });
     this.saveToStorage();
@@ -4525,18 +4529,17 @@ class Store {
   }
 
   getChapterNewExhibitions(chapterId: string): Exhibition[] {
-    const chapters = this.getChapters();
-    const currentIndex = chapters.findIndex(c => c.id === chapterId);
-    if (currentIndex === -1) return [];
+    const chapter = this.getChapterById(chapterId);
+    if (!chapter) return [];
     
-    const chapter = chapters[currentIndex];
-    const prevChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
-    const prevExhibitions = prevChapter ? prevChapter.exhibitions : [];
-    
-    return chapter.exhibitions
-      .filter(exhId => !prevExhibitions.includes(exhId))
+    return this.newlyUnlockedExhibitions
+      .filter(exhId => chapter.exhibitions.includes(exhId))
       .map(exhId => this.getExhibitionById(exhId))
-      .filter((exh): exh is Exhibition => exh !== undefined);
+      .filter((exh): exh is Exhibition => exh !== undefined && exh.unlocked);
+  }
+
+  clearNewlyUnlockedExhibitions(): void {
+    this.newlyUnlockedExhibitions = [];
   }
 
   getArchiveProgressForChapter(chapterId: string): { total: number; archived: number; unarchived: string[] } {
