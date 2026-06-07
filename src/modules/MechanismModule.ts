@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { Mechanism } from '../game/types';
+import { Mechanism, MechanismErrorType, MechanismErrorFeedback } from '../game/types';
 import { store } from '../game/Store';
 import { eventBus } from '../game/EventBus';
 import { GAME_CONFIG } from '../game/config';
@@ -277,6 +277,7 @@ export class MechanismModule {
     this.lockPanel.addChild(hint);
 
     const displayBg = new PIXI.Graphics();
+    displayBg.name = 'displayBg';
     displayBg.beginFill(0x000000, 0.8);
     displayBg.lineStyle(3, GAME_CONFIG.COLORS.AMBER, 1);
     displayBg.drawRoundedRect(150, 520, 450, 80, 10);
@@ -290,6 +291,7 @@ export class MechanismModule {
       align: 'center',
       letterSpacing: 10
     });
+    displayText.name = 'displayText';
     displayText.anchor.set(0.5);
     displayText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
     displayText.y = 560;
@@ -434,8 +436,10 @@ export class MechanismModule {
     this.lockPanel.addChild(hint);
 
     const slotContainer = new PIXI.Container();
+    slotContainer.name = 'slotContainer';
     slotContainer.y = 530;
     this.lockPanel.addChild(slotContainer);
+    (this.lockPanel as any).slotContainer = slotContainer;
 
     const answer = mechanism.answer as number[];
     const slotSize = 120;
@@ -576,6 +580,117 @@ export class MechanismModule {
     }
   }
 
+  private analyzePasswordError(input: string, answer: string): MechanismErrorFeedback {
+    if (input.length < answer.length) {
+      return {
+        type: 'incomplete_input',
+        message: '输入不完整',
+        sfx: 'sfx_error_incomplete',
+        hintText: `请输入完整的${answer.length}位密码`
+      };
+    }
+
+    if (!/^\d+$/.test(input)) {
+      return {
+        type: 'format_error',
+        message: '格式错误',
+        sfx: 'sfx_error_format',
+        hintText: '密码只能包含数字，请检查输入'
+      };
+    }
+
+    const correctPositions: number[] = [];
+    const wrongPositions: number[] = [];
+    
+    for (let i = 0; i < answer.length; i++) {
+      if (input[i] === answer[i]) {
+        correctPositions.push(i);
+      } else {
+        wrongPositions.push(i);
+      }
+    }
+
+    if (correctPositions.length === 0) {
+      return {
+        type: 'completely_wrong',
+        message: '密码错误',
+        sfx: 'sfx_error_wrong',
+        hintText: '密码完全错误，请重新思考',
+        correctPositions,
+        wrongPositions
+      };
+    } else if (correctPositions.length < answer.length) {
+      return {
+        type: 'partial_correct',
+        message: '部分正确',
+        sfx: 'sfx_error_partial',
+        hintText: `第${correctPositions.map(p => p + 1).join('、')}位正确，其余位置错误`,
+        correctPositions,
+        wrongPositions
+      };
+    }
+
+    return {
+      type: 'completely_wrong',
+      message: '密码错误',
+      sfx: 'sfx_error_wrong',
+      hintText: '密码错误，请重试',
+      correctPositions: [],
+      wrongPositions: []
+    };
+  }
+
+  private analyzeSequenceError(input: number[], answer: number[]): MechanismErrorFeedback {
+    if (input.length < answer.length) {
+      return {
+        type: 'incomplete_input',
+        message: '输入不完整',
+        sfx: 'sfx_error_incomplete',
+        hintText: `请选择完整的${answer.length}个碎片`
+      };
+    }
+
+    const correctPositions: number[] = [];
+    const wrongPositions: number[] = [];
+    
+    for (let i = 0; i < answer.length; i++) {
+      if (input[i] === answer[i]) {
+        correctPositions.push(i);
+      } else {
+        wrongPositions.push(i);
+      }
+    }
+
+    if (correctPositions.length === 0) {
+      return {
+        type: 'completely_wrong',
+        message: '顺序错误',
+        sfx: 'sfx_error_wrong',
+        hintText: '顺序完全错误，请重新排列',
+        correctPositions,
+        wrongPositions
+      };
+    } else if (correctPositions.length < answer.length) {
+      return {
+        type: 'partial_correct',
+        message: '部分正确',
+        sfx: 'sfx_error_partial',
+        hintText: `第${correctPositions.map(p => p + 1).join('、')}个正确，其余位置错误`,
+        correctPositions,
+        wrongPositions
+      };
+    }
+
+    return {
+      type: 'completely_wrong',
+      message: '顺序错误',
+      sfx: 'sfx_error_wrong',
+      hintText: '顺序错误，请重试',
+      correctPositions: [],
+      wrongPositions: []
+    };
+  }
+
   private validatePassword(): void {
     if (!this.currentMechanism) return;
 
@@ -583,7 +698,8 @@ export class MechanismModule {
     if (this.inputValue === answer) {
       this.onSuccess();
     } else {
-      this.onError();
+      const errorFeedback = this.analyzePasswordError(this.inputValue, answer);
+      this.onError(errorFeedback);
     }
   }
 
@@ -591,17 +707,12 @@ export class MechanismModule {
     if (!this.currentMechanism) return;
 
     const answer = this.currentMechanism.answer as number[];
-    if (this.sequenceInput.length !== answer.length) {
-      this.showHint('请输入完整的顺序');
-      audioModule.playSFX('sfx_error');
-      return;
-    }
-
     const isCorrect = this.sequenceInput.every((val, idx) => val === answer[idx]);
     if (isCorrect) {
       this.onSuccess();
     } else {
-      this.onError();
+      const errorFeedback = this.analyzeSequenceError(this.sequenceInput, answer);
+      this.onError(errorFeedback);
     }
   }
 
@@ -641,13 +752,14 @@ export class MechanismModule {
     }
   }
 
-  private onError(): void {
-    audioModule.playSFX('sfx_error');
-    this.showHint('密码错误，请重试');
+  private onError(feedback: MechanismErrorFeedback): void {
+    audioModule.playSFX(feedback.sfx);
+    this.showErrorHint(feedback);
     this.shakeAnimation();
+    this.highlightInputPositions(feedback);
   }
 
-  private showHint(text: string): void {
+  private showErrorHint(feedback: MechanismErrorFeedback): void {
     if (!this.lockPanel) return;
 
     const existingHint = this.lockPanel.getChildByName('errorHint');
@@ -656,25 +768,66 @@ export class MechanismModule {
       existingHint.destroy();
     }
 
-    const hint = new PIXI.Text(text, {
-      fontFamily: GAME_CONFIG.FONTS.BODY,
-      fontSize: 22,
-      fill: GAME_CONFIG.COLORS.WARM_ORANGE,
+    const existingType = this.lockPanel.getChildByName('errorType');
+    if (existingType) {
+      this.lockPanel.removeChild(existingType);
+      existingType.destroy();
+    }
+
+    const typeColors: Record<MechanismErrorType, number> = {
+      'incomplete_input': GAME_CONFIG.COLORS.AMBER,
+      'format_error': GAME_CONFIG.COLORS.WARM_ORANGE,
+      'partial_correct': GAME_CONFIG.COLORS.GOLD,
+      'completely_wrong': GAME_CONFIG.COLORS.EMERGENCY_RED,
+      'attempts_exhausted': GAME_CONFIG.COLORS.EMERGENCY_RED
+    };
+
+    const typeIcons: Record<MechanismErrorType, string> = {
+      'incomplete_input': '⚠️',
+      'format_error': '❌',
+      'partial_correct': '💡',
+      'completely_wrong': '🚫',
+      'attempts_exhausted': '💔'
+    };
+
+    const errorType = new PIXI.Text(`${typeIcons[feedback.type]} ${feedback.message}`, {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 26,
+      fill: typeColors[feedback.type],
       align: 'center'
+    });
+    errorType.name = 'errorType';
+    errorType.anchor.set(0.5);
+    errorType.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    errorType.y = 485;
+    errorType.alpha = 0;
+    this.lockPanel.addChild(errorType);
+
+    const hint = new PIXI.Text(feedback.hintText, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 20,
+      fill: 0xFFFFFF,
+      align: 'center',
+      wordWrap: true,
+      wordWrapWidth: 580
     });
     hint.name = 'errorHint';
     hint.anchor.set(0.5);
     hint.x = GAME_CONFIG.DESIGN_WIDTH / 2;
-    hint.y = 490;
+    hint.y = 520;
     hint.alpha = 0;
     this.lockPanel.addChild(hint);
 
     Animator.animate(
       300,
-      (progress) => { hint.alpha = progress; },
+      (progress) => { errorType.alpha = progress; hint.alpha = progress; },
       () => {
-        Animator.delay(2000).then(() => {
-          Animator.animate(300, (p) => { hint.alpha = 1 - p; }, () => {
+        Animator.delay(3000).then(() => {
+          Animator.animate(300, (p) => { errorType.alpha = 1 - p; hint.alpha = 1 - p; }, () => {
+            if (errorType.parent) {
+              errorType.parent.removeChild(errorType);
+              errorType.destroy();
+            }
             if (hint.parent) {
               hint.parent.removeChild(hint);
               hint.destroy();
@@ -683,6 +836,179 @@ export class MechanismModule {
         });
       }
     );
+  }
+
+  private highlightInputPositions(feedback: MechanismErrorFeedback): void {
+    if (!this.lockPanel || !feedback.correctPositions) return;
+
+    if (feedback.type === 'incomplete_input' || feedback.type === 'format_error') {
+      return;
+    }
+
+    const correctPositions = feedback.correctPositions || [];
+    const wrongPositions = feedback.wrongPositions || [];
+
+    if (correctPositions.length === 0 && wrongPositions.length === 0) {
+      return;
+    }
+
+    const displayText = (this.lockPanel as any).displayText as PIXI.Text;
+    const slotContainer = (this.lockPanel as any).slotContainer as PIXI.Container;
+
+    if (displayText) {
+      this.updateDisplayWithColors(correctPositions, wrongPositions);
+    } else if (slotContainer) {
+      this.updateSequenceSlotsWithColors(correctPositions, wrongPositions);
+    }
+  }
+
+  private updateSequenceSlotsWithColors(
+    correctPositions: number[], 
+    wrongPositions: number[]
+  ): void {
+    if (!this.lockPanel) return;
+
+    const startX = (this.lockPanel as any).sequenceStartX !== undefined 
+      ? (this.lockPanel as any).sequenceStartX 
+      : (GAME_CONFIG.DESIGN_WIDTH - 650) / 2 + 50;
+    const sequenceY = (this.lockPanel as any).sequenceY !== undefined 
+      ? (this.lockPanel as any).sequenceY 
+      : 530;
+    const answer = this.currentMechanism?.answer as number[];
+    const slotSize = answer && answer.length <= 3 ? 120 : 100;
+    const gap = 20;
+
+    const overlayContainer = new PIXI.Container();
+    overlayContainer.name = 'coloredSequenceOverlay';
+    overlayContainer.y = sequenceY;
+
+    for (let i = 0; i < this.sequenceInput.length; i++) {
+      const isCorrect = correctPositions.includes(i);
+      const isWrong = wrongPositions.includes(i);
+
+      let borderColor: number = GAME_CONFIG.COLORS.AMBER;
+      let bgColor = 0x000000;
+
+      if (isCorrect) {
+        borderColor = GAME_CONFIG.COLORS.GREEN;
+        bgColor = 0x1B5E20;
+      } else if (isWrong) {
+        borderColor = GAME_CONFIG.COLORS.EMERGENCY_RED;
+        bgColor = 0x4A0F0F;
+      }
+
+      const slotOverlay = new PIXI.Graphics();
+      slotOverlay.beginFill(bgColor, 0.85);
+      slotOverlay.lineStyle(4, borderColor, 1);
+      slotOverlay.drawRoundedRect(0, 0, slotSize, slotSize, 10);
+      slotOverlay.endFill();
+      slotOverlay.x = startX + i * (slotSize + gap);
+      overlayContainer.addChild(slotOverlay);
+
+      const currentValue = this.sequenceInput[i];
+      const emojiMap: Record<number, string> = { 1: '📜', 2: '💎', 3: '🏥', 4: '📖' };
+      const emoji = emojiMap[currentValue] || '❓';
+
+      const iconText = new PIXI.Text(emoji, { fontSize: slotSize <= 100 ? 40 : 48 });
+      iconText.anchor.set(0.5);
+      iconText.x = slotSize / 2;
+      iconText.y = slotSize / 2;
+      iconText.alpha = 0;
+      slotOverlay.addChild(iconText);
+
+      Animator.animate(
+        200,
+        (p) => { iconText.alpha = p; iconText.scale.set(0.5 + p * 0.5); }
+      );
+    }
+
+    this.lockPanel.addChild(overlayContainer);
+
+    Animator.delay(2500).then(() => {
+      if (this.lockPanel) {
+        const overlay = this.lockPanel.getChildByName('coloredSequenceOverlay');
+        if (overlay) {
+          this.lockPanel.removeChild(overlay);
+          overlay.destroy();
+        }
+      }
+    });
+  }
+
+  private updateDisplayWithColors(correctPositions: number[], wrongPositions: number[]): void {
+    if (!this.lockPanel) return;
+
+    const displayBg = this.lockPanel.getChildByName('displayBg') as PIXI.Graphics;
+    if (!displayBg) return;
+
+    const displayY = (this.lockPanel as any).displayY !== undefined ? (this.lockPanel as any).displayY : 520;
+    const answerLength = (this.currentMechanism?.answer as string)?.length || 6;
+
+    const slotContainer = new PIXI.Container();
+    slotContainer.name = 'coloredDisplay';
+    slotContainer.y = displayY;
+
+    const charWidth = answerLength <= 4 ? 80 : 60;
+    const totalWidth = answerLength * charWidth;
+    const startX = (GAME_CONFIG.DESIGN_WIDTH - totalWidth) / 2;
+
+    for (let i = 0; i < answerLength; i++) {
+      const slot = new PIXI.Graphics();
+      const isCorrect = correctPositions.includes(i);
+      const isWrong = wrongPositions.includes(i);
+
+      let borderColor: number = GAME_CONFIG.COLORS.AMBER;
+      let bgColor = 0x000000;
+
+      if (isCorrect) {
+        borderColor = GAME_CONFIG.COLORS.GREEN;
+        bgColor = 0x1B5E20;
+      } else if (isWrong) {
+        borderColor = GAME_CONFIG.COLORS.EMERGENCY_RED;
+        bgColor = 0x4A0F0F;
+      }
+
+      const height = answerLength <= 4 ? 70 : 80;
+      slot.beginFill(bgColor, 0.8);
+      slot.lineStyle(3, borderColor, 1);
+      slot.drawRoundedRect(0, 0, charWidth - 5, height, 8);
+      slot.endFill();
+      slot.x = startX + i * charWidth;
+      slotContainer.addChild(slot);
+
+      if (this.inputValue[i]) {
+        const charText = new PIXI.Text(this.inputValue[i], {
+          fontFamily: 'monospace',
+          fontSize: answerLength <= 4 ? 36 : 42,
+          fill: isCorrect ? GAME_CONFIG.COLORS.GREEN : isWrong ? GAME_CONFIG.COLORS.EMERGENCY_RED : GAME_CONFIG.COLORS.GOLD,
+          align: 'center'
+        });
+        charText.anchor.set(0.5);
+        charText.x = (charWidth - 5) / 2;
+        charText.y = height / 2;
+        slot.addChild(charText);
+      }
+    }
+
+    this.lockPanel.addChild(slotContainer);
+
+    const displayText = (this.lockPanel as any).displayText;
+    if (displayText) {
+      displayText.visible = false;
+    }
+
+    Animator.delay(2500).then(() => {
+      if (this.lockPanel) {
+        const coloredDisplay = this.lockPanel.getChildByName('coloredDisplay');
+        if (coloredDisplay) {
+          this.lockPanel.removeChild(coloredDisplay);
+          coloredDisplay.destroy();
+        }
+        if (displayText) {
+          displayText.visible = true;
+        }
+      }
+    });
   }
 
   private shakeAnimation(): void {
@@ -963,6 +1289,7 @@ export class MechanismModule {
 
   private createPasswordInput(y: number, lockPanel: PIXI.Container): void {
     const displayBg = new PIXI.Graphics();
+    displayBg.name = 'displayBg';
     displayBg.beginFill(0x000000, 0.8);
     displayBg.lineStyle(3, GAME_CONFIG.COLORS.AMBER, 1);
     displayBg.drawRoundedRect(150, y, 450, 70, 10);
@@ -976,11 +1303,13 @@ export class MechanismModule {
       align: 'center',
       letterSpacing: 10
     });
+    displayText.name = 'displayText';
     displayText.anchor.set(0.5);
     displayText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
     displayText.y = y + 35;
     lockPanel.addChild(displayText);
     (lockPanel as any).displayText = displayText;
+    (lockPanel as any).displayY = y;
 
     this.createMiniNumberPad(y + 90, lockPanel);
 
@@ -1048,12 +1377,16 @@ export class MechanismModule {
 
   private createSequenceInput(y: number, answer: number[], lockPanel: PIXI.Container): void {
     const slotContainer = new PIXI.Container();
+    slotContainer.name = 'slotContainer';
     slotContainer.y = y;
     lockPanel.addChild(slotContainer);
+    (lockPanel as any).slotContainer = slotContainer;
+    (lockPanel as any).sequenceStartX = (650 - (answer.length * 100 + (answer.length - 1) * 20)) / 2 + 50;
+    (lockPanel as any).sequenceY = y;
 
     const slotSize = 100;
     const gap = 20;
-    const startX = (650 - (answer.length * slotSize + (answer.length - 1) * gap)) / 2 + 50;
+    const startX = (lockPanel as any).sequenceStartX;
 
     for (let i = 0; i < answer.length; i++) {
       const slot = new PIXI.Graphics();
@@ -1770,6 +2103,7 @@ export class MechanismModule {
     content.addChild(derivedDisplay);
 
     const displayBg = new PIXI.Graphics();
+    displayBg.name = 'displayBg';
     displayBg.beginFill(0x000000, 0.8);
     displayBg.lineStyle(3, GAME_CONFIG.COLORS.AMBER, 1);
     displayBg.drawRoundedRect(150, 540, 450, 80, 10);
@@ -1783,11 +2117,13 @@ export class MechanismModule {
       align: 'center',
       letterSpacing: 10
     });
+    displayText.name = 'displayText';
     displayText.anchor.set(0.5);
     displayText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
     displayText.y = 580;
     content.addChild(displayText);
     (content as any).displayText = displayText;
+    (content as any).displayY = 540;
     this.inputValue = '';
 
     const startX = 150;
@@ -1920,19 +2256,41 @@ export class MechanismModule {
         );
       }
     } else {
-      audioModule.playSFX('sfx_error');
       const attempts = store.getAuthenticityAttempts();
+      const answer = mechanism.answer as string;
+      
+      let errorFeedback: MechanismErrorFeedback;
+      
       if (attempts.current >= attempts.max) {
-        this.showHint(`机会已用完，鉴定失败\n将重置鉴定进度`);
-        Animator.delay(2000).then(() => {
+        errorFeedback = {
+          type: 'attempts_exhausted',
+          message: '机会已用完',
+          sfx: 'sfx_error_exhausted',
+          hintText: '鉴定失败，将重置鉴定进度',
+          remainingAttempts: 0
+        };
+      } else {
+        errorFeedback = this.analyzePasswordError(this.inputValue, answer);
+        errorFeedback.remainingAttempts = attempts.max - attempts.current;
+        errorFeedback.hintText += `\n剩余${attempts.max - attempts.current}次机会`;
+      }
+
+      audioModule.playSFX(errorFeedback.sfx);
+      this.showErrorHint(errorFeedback);
+      this.shakeAnimation();
+
+      const displayText = (this.lockPanel as any).displayText;
+      if (displayText) {
+        this.highlightInputPositions(errorFeedback);
+      }
+
+      if (attempts.current >= attempts.max) {
+        Animator.delay(2500).then(() => {
           store.resetAuthenticityProgress();
           const updatedRelics = mechanism.authenticityRelicIds?.map(id => store.getAuthenticityRelicById(id)).filter(Boolean) || [];
           this.renderAuthenticityMain(mechanism, updatedRelics);
         });
-      } else {
-        this.showHint(`密码错误，请重试\n剩余${attempts.max - attempts.current}次机会`);
       }
-      this.shakeAnimation();
     }
   }
 

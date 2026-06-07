@@ -117,6 +117,11 @@ export class AudioModule {
                       name === 'sfx_collect' ? 600 :
                       name === 'sfx_success' ? 523 :
                       name === 'sfx_error' ? 200 :
+                      name === 'sfx_error_incomplete' ? 300 :
+                      name === 'sfx_error_format' ? 250 :
+                      name === 'sfx_error_partial' ? 350 :
+                      name === 'sfx_error_wrong' ? 150 :
+                      name === 'sfx_error_exhausted' ? 100 :
                       name === 'sfx_unlock' ? 440 :
                       name === 'sfx_night_start' ? 150 :
                       name === 'sfx_day_start' ? 660 :
@@ -166,6 +171,11 @@ export class AudioModule {
                      name === 'sfx_distant_thud' ? 1.2 :
                      name === 'sfx_whisper_echo' ? 2.5 :
                      name === 'sfx_power_flicker' ? 0.3 :
+                     name === 'sfx_error_incomplete' ? 0.4 :
+                     name === 'sfx_error_format' ? 0.5 :
+                     name === 'sfx_error_partial' ? 0.6 :
+                     name === 'sfx_error_wrong' ? 0.8 :
+                     name === 'sfx_error_exhausted' ? 1.2 :
                      loop ? 8 : 0.3;
 
     return new Howl({

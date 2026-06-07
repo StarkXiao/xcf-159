@@ -783,3 +783,20 @@ export interface ProgressEvents {
   'navigation:blocked': { exhibitionId: string; reason: string };
   'exhibition:change': { exhibitionId: string };
 }
+
+export type MechanismErrorType =
+  | 'incomplete_input'
+  | 'format_error'
+  | 'partial_correct'
+  | 'completely_wrong'
+  | 'attempts_exhausted';
+
+export interface MechanismErrorFeedback {
+  type: MechanismErrorType;
+  message: string;
+  sfx: string;
+  hintText: string;
+  correctPositions?: number[];
+  wrongPositions?: number[];
+  remainingAttempts?: number;
+}
