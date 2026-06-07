@@ -522,6 +522,7 @@ export interface GameState {
   readingRoom: ReadingRoomState;
   authenticity: AuthenticityState;
   memoryCorridor: MemoryCorridorState;
+  memoryPuzzleRecovery: MemoryPuzzleRecoveryState;
 }
 
 export interface MemorySortData {
@@ -799,4 +800,81 @@ export interface MechanismErrorFeedback {
   correctPositions?: number[];
   wrongPositions?: number[];
   remainingAttempts?: number;
+}
+
+export interface MemoryPuzzleAttempt {
+  attemptNumber: number;
+  arrangedIds: string[];
+  correctCount: number;
+  correctPositions: number[];
+  wrongPositions: number[];
+  timestamp: number;
+}
+
+export interface MemoryPuzzleState {
+  puzzleId: string;
+  chapterId: string;
+  attempts: MemoryPuzzleAttempt[];
+  hintsUsed: number;
+  maxHints: number;
+  skipped: boolean;
+  skipCost: number;
+  startTime: number;
+  completedTime: number | null;
+  completed: boolean;
+  baseScore: number;
+  finalScore: number;
+  scoreMultiplier: number;
+}
+
+export interface MemoryPuzzleScoreResult {
+  baseScore: number;
+  attemptPenalty: number;
+  hintPenalty: number;
+  skipPenalty: number;
+  speedBonus: number;
+  perfectBonus: number;
+  finalScore: number;
+  rank: 'S' | 'A' | 'B' | 'C';
+  multiplier: number;
+}
+
+export interface MemorySortHint {
+  level: 1 | 2 | 3;
+  message: string;
+  correctPositions: number[];
+  suggestedSwaps?: { from: number; to: number; fragmentId: string }[];
+  firstWrongPosition?: number;
+  correctFragmentAtPosition?: { position: number; fragmentId: string };
+}
+
+export interface MemorySortSkipResult {
+  success: boolean;
+  skipCost: number;
+  finalScore: number;
+  message: string;
+}
+
+export interface MemoryPuzzleRecoveryState {
+  [puzzleId: string]: MemoryPuzzleState;
+}
+
+export interface MemorySortSubmitResult {
+  success: boolean;
+  correct?: boolean;
+  reason?: string;
+  reward?: string;
+  message?: string;
+  progress?: number;
+  attempts?: number;
+  hint?: MemorySortHint;
+  correctPositions?: number[];
+  wrongPositions?: number[];
+  correctCount?: number;
+  totalCount?: number;
+  scoreInfo?: MemoryPuzzleScoreResult;
+  canGetHint?: boolean;
+  hintCost?: number;
+  canSkip?: boolean;
+  skipCost?: number;
 }

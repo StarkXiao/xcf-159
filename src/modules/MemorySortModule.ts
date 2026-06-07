@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { Clue, MemorySortData } from '../game/types';
+import { Clue, MemorySortData, MemoryPuzzleScoreResult } from '../game/types';
 import { store } from '../game/Store';
 import { eventBus } from '../game/EventBus';
 import { GAME_CONFIG } from '../game/config';
@@ -16,6 +16,19 @@ export class MemorySortModule {
   private dragOffset: { x: number; y: number } = { x: 0, y: 0 };
   private fragmentSlots: Map<string, PIXI.Container> = new Map();
   private isOpen: boolean = false;
+  private currentPuzzleId: string = '';
+  private currentChapterId: string = '';
+  private correctPositions: number[] = [];
+  private wrongPositions: number[] = [];
+  private attemptsText: PIXI.Text | null = null;
+  private scoreText: PIXI.Text | null = null;
+  private hintButton: PIXI.Container | null = null;
+  private skipButton: PIXI.Container | null = null;
+  private hintText: PIXI.Text | null = null;
+  private canGetHint: boolean = true;
+  private canSkip: boolean = true;
+  private skipCost: number = GAME_CONFIG.MEMORY_PUZZLE.SKIP_BASE_COST;
+  private hintCost: number = GAME_CONFIG.MEMORY_PUZZLE.HINT_COST;
 
   constructor(container: PIXI.Container) {
     this.container = container;
@@ -30,6 +43,11 @@ export class MemorySortModule {
     this.isOpen = true;
     this.arrangedIds = [];
     this.fragmentSlots.clear();
+    this.correctPositions = [];
+    this.wrongPositions = [];
+    this.currentChapterId = store.getCurrentChapter()?.id || '';
+    this.currentPuzzleId = data.mechanismId;
+    store.initMemoryPuzzleState(this.currentPuzzleId, this.currentChapterId);
     this.shuffleFragments();
 
     this.sortPanel = new PIXI.Container();
@@ -75,22 +93,63 @@ export class MemorySortModule {
     subtitle.y = 320;
     this.sortPanel.addChild(subtitle);
 
+    this.attemptsText = new PIXI.Text('尝试次数：0', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: GAME_CONFIG.COLORS.AMBER,
+      align: 'left'
+    });
+    this.attemptsText.x = 60;
+    this.attemptsText.y = 360;
+    this.sortPanel.addChild(this.attemptsText);
+
+    this.scoreText = new PIXI.Text('基础积分：500', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: GAME_CONFIG.COLORS.AMBER,
+      align: 'right'
+    });
+    this.scoreText.anchor.x = 1;
+    this.scoreText.x = GAME_CONFIG.DESIGN_WIDTH - 60;
+    this.scoreText.y = 360;
+    this.sortPanel.addChild(this.scoreText);
+
+    this.hintText = new PIXI.Text('', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 16,
+      fill: 0x7FD77F,
+      align: 'center',
+      wordWrap: true,
+      wordWrapWidth: 600
+    });
+    this.hintText.anchor.set(0.5);
+    this.hintText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    this.hintText.y = 620;
+    this.sortPanel.addChild(this.hintText);
+
     this.createSlots();
     this.createFragmentCards();
 
-    const confirmBtn = this.createButton('确认顺序', 400, 1050);
+    const confirmBtn = this.createButton('确认顺序', 390, 1050);
     confirmBtn.on('pointerdown', () => {
       audioModule.playSFX('sfx_click');
       this.validateOrder();
     });
     this.sortPanel.addChild(confirmBtn);
 
-    const closeBtn = this.createButton('稍后再说', 150, 1050, true);
-    closeBtn.on('pointerdown', () => {
+    this.hintButton = this.createButton(`提示 (-${this.hintCost}分)`, 150, 1050, true);
+    this.hintButton.on('pointerdown', () => {
       audioModule.playSFX('sfx_click');
-      this.closeSortPanel();
+      this.useHint();
     });
-    this.sortPanel.addChild(closeBtn);
+    this.sortPanel.addChild(this.hintButton);
+
+    this.skipButton = this.createButton(`跳过 (-${this.skipCost}分)`, 630, 1050, true);
+    this.skipButton.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      this.skipPuzzle();
+    });
+    this.sortPanel.addChild(this.skipButton);
 
     this.sortPanel.alpha = 0;
     this.container.addChild(this.sortPanel);
@@ -114,22 +173,42 @@ export class MemorySortModule {
   }
 
   private createSlots(): void {
-    const slotY = 380;
+    const slotY = 410;
     const slotSize = 200;
     const gap = 30;
     const startX = (GAME_CONFIG.DESIGN_WIDTH - (this.fragments.length * slotSize + (this.fragments.length - 1) * gap)) / 2;
 
+    this.fragmentSlots.clear();
+
     for (let i = 0; i < this.fragments.length; i++) {
       const slot = new PIXI.Graphics();
-      slot.lineStyle(3, GAME_CONFIG.COLORS.AMBER, 0.5);
-      slot.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.3);
+      
+      let borderColor: number = GAME_CONFIG.COLORS.AMBER;
+      let fillColor: number = GAME_CONFIG.COLORS.BRONZE;
+      let alpha = 0.5;
+      let fillAlpha = 0.3;
+
+      if (this.correctPositions.includes(i)) {
+        borderColor = 0x00FF00;
+        fillColor = 0x00FF00;
+        alpha = 0.8;
+        fillAlpha = 0.2;
+      } else if (this.wrongPositions.includes(i)) {
+        borderColor = 0xFF0000;
+        fillColor = 0xFF0000;
+        alpha = 0.8;
+        fillAlpha = 0.2;
+      }
+
+      slot.lineStyle(3, borderColor, alpha);
+      slot.beginFill(fillColor, fillAlpha);
       slot.drawRoundedRect(0, 0, slotSize, slotSize, 15);
       slot.endFill();
 
       const slotNum = new PIXI.Text(`${i + 1}`, {
         fontFamily: GAME_CONFIG.FONTS.TITLE,
         fontSize: 48,
-        fill: GAME_CONFIG.COLORS.AMBER
+        fill: borderColor
       });
       slotNum.alpha = 0.5;
       slotNum.anchor.set(0.5);
@@ -139,7 +218,9 @@ export class MemorySortModule {
 
       slot.x = startX + i * (slotSize + gap);
       slot.y = slotY;
+      (slot as any).slotIndex = i;
       this.sortPanel!.addChild(slot);
+      this.fragmentSlots.set(`slot-${i}`, slot);
     }
   }
 
@@ -332,14 +413,124 @@ export class MemorySortModule {
 
     const result = store.submitMemorySort(this.currentMechanismId, orderedIds);
 
+    if (result.correctPositions !== undefined) {
+      this.correctPositions = result.correctPositions;
+    }
+    if (result.wrongPositions !== undefined) {
+      this.wrongPositions = result.wrongPositions;
+    }
+
+    this.refreshSlots();
+
+    if (result.attempts !== undefined) {
+      this.updateInfoText(result.attempts);
+    }
+
+    if (result.hint && this.hintText) {
+      this.hintText.text = `💡 ${result.hint.message}`;
+    }
+
+    if (result.canGetHint !== undefined) {
+      this.canGetHint = result.canGetHint;
+    }
+    if (result.hintCost !== undefined) {
+      this.hintCost = result.hintCost;
+    }
+    if (result.canSkip !== undefined) {
+      this.canSkip = result.canSkip;
+    }
+    if (result.skipCost !== undefined) {
+      this.skipCost = result.skipCost;
+    }
+    this.updateButtons();
+
     if (result.success && result.correct) {
       audioModule.playSFX('sfx_success');
       audioModule.playSFX('sfx_unlock');
-      this.showSuccessEffect();
+      this.showSuccessEffect(result.scoreInfo);
     } else {
       audioModule.playSFX('sfx_error');
       this.showHint(result.message || '顺序不正确，请重新排列');
       this.shakeAnimation();
+    }
+  }
+
+  private refreshSlots(): void {
+    if (!this.sortPanel) return;
+    
+    this.fragmentSlots.forEach(slot => {
+      this.sortPanel?.removeChild(slot);
+      slot.destroy();
+    });
+    
+    this.createSlots();
+  }
+
+  private updateInfoText(attempts: number): void {
+    if (this.attemptsText) {
+      this.attemptsText.text = `尝试次数：${attempts}`;
+    }
+    
+    if (this.scoreText) {
+      const scoreResult = store.calculateMemoryPuzzleScore(this.currentPuzzleId);
+      this.scoreText.text = `预计积分：${scoreResult.finalScore} 分`;
+    }
+  }
+
+  private updateButtons(): void {
+    if (this.hintButton) {
+      const hintText = this.hintButton.getChildAt(1) as PIXI.Text;
+      if (hintText) {
+        hintText.text = this.canGetHint ? `提示 (-${this.hintCost}分)` : '提示已用完';
+      }
+      (this.hintButton as any).eventMode = this.canGetHint ? 'static' : 'none';
+      this.hintButton.alpha = this.canGetHint ? 1 : 0.5;
+    }
+
+    if (this.skipButton) {
+      const skipText = this.skipButton.getChildAt(1) as PIXI.Text;
+      if (skipText) {
+        skipText.text = this.canSkip ? `跳过 (-${this.skipCost}分)` : '已完成';
+      }
+      (this.skipButton as any).eventMode = this.canSkip ? 'static' : 'none';
+      this.skipButton.alpha = this.canSkip ? 1 : 0.5;
+    }
+  }
+
+  private useHint(): void {
+    if (!this.canGetHint) return;
+
+    const fragmentIds = this.fragments.map(f => f.id);
+    const hint = store.generateMemorySortHint(this.currentPuzzleId, this.arrangedIds, fragmentIds);
+    
+    if (hint && this.hintText) {
+      this.hintText.text = `💡 ${hint.message}`;
+      audioModule.playSFX('sfx_click');
+    }
+
+    const state = store.getMemoryPuzzleState(this.currentPuzzleId);
+    if (state) {
+      this.canGetHint = state.hintsUsed < state.maxHints;
+      this.updateButtons();
+      this.updateInfoText(state.attempts.length);
+    }
+  }
+
+  private skipPuzzle(): void {
+    if (!this.canSkip) return;
+
+    const confirm = window.confirm(`确定要跳过记忆拼图吗？\n将扣除 ${this.skipCost} 分，最终积分会降低。`);
+    if (!confirm) return;
+
+    const result = store.skipMemoryPuzzle(this.currentPuzzleId, this.currentMechanismId);
+    
+    if (result.success) {
+      this.showHint(result.message || '已跳过记忆拼图');
+      audioModule.playSFX('sfx_click');
+      
+      Animator.delay(1500).then(() => {
+        this.closeSortPanel();
+      });
     }
   }
 
@@ -388,12 +579,69 @@ export class MemorySortModule {
     shakeStep();
   }
 
-  private showSuccessEffect(): void {
+  private showSuccessEffect(scoreInfo?: MemoryPuzzleScoreResult): void {
+    if (scoreInfo && this.scoreText) {
+      this.scoreText.text = `最终积分：${scoreInfo.finalScore} 分 (${scoreInfo.rank})`;
+      this.scoreText.style.fill = GAME_CONFIG.COLORS.GOLD;
+    }
+
     const glow = new PIXI.Graphics();
     glow.beginFill(GAME_CONFIG.COLORS.GOLD, 0);
     glow.drawRoundedRect(25, 150, 700, 1000, 20);
     glow.endFill();
     this.sortPanel!.addChild(glow);
+
+    if (scoreInfo) {
+      const scorePanel = new PIXI.Container();
+      scorePanel.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+      scorePanel.y = 360;
+      scorePanel.alpha = 0;
+
+      const bg = new PIXI.Graphics();
+      bg.beginFill(0x000000, 0.7);
+      bg.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 0.8);
+      bg.drawRoundedRect(-200, -40, 400, 80, 10);
+      bg.endFill();
+      scorePanel.addChild(bg);
+
+      const rankColor = scoreInfo.rank === 'S' ? 0xFFD700 : 
+                       scoreInfo.rank === 'A' ? GAME_CONFIG.COLORS.AMBER :
+                       scoreInfo.rank === 'B' ? GAME_CONFIG.COLORS.BRONZE : 0x888888;
+
+      const rankText = new PIXI.Text(`${scoreInfo.rank}`, {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 36,
+        fill: rankColor,
+        align: 'center'
+      });
+      rankText.anchor.set(0.5);
+      rankText.x = -120;
+      rankText.y = 0;
+      scorePanel.addChild(rankText);
+
+      const scoreText = new PIXI.Text(`+${scoreInfo.finalScore} 分`, {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 32,
+        fill: GAME_CONFIG.COLORS.GOLD,
+        align: 'center'
+      });
+      scoreText.anchor.set(0.5);
+      scoreText.x = 80;
+      scoreText.y = 0;
+      scorePanel.addChild(scoreText);
+
+      this.sortPanel!.addChild(scorePanel);
+
+      Animator.animate(
+        500,
+        (progress) => {
+          scorePanel.alpha = progress;
+          scorePanel.y = 360 - progress * 20;
+        },
+        undefined,
+        Animator.easeOutCubic
+      );
+    }
 
     Animator.animate(
       500,
@@ -405,7 +653,7 @@ export class MemorySortModule {
         glow.endFill();
       },
       () => {
-        Animator.delay(1000).then(() => {
+        Animator.delay(1500).then(() => {
           this.closeSortPanel();
         });
       }

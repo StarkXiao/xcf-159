@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose, ChapterKeyPoint, ChapterIncompleteCondition, MemoryFragmentGap, ChapterProgressAnalysis, ChapterKeyPointReview } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose, ChapterKeyPoint, ChapterIncompleteCondition, MemoryFragmentGap, ChapterProgressAnalysis, ChapterKeyPointReview, MemoryPuzzleState, MemoryPuzzleAttempt, MemoryPuzzleScoreResult, MemorySortHint, MemorySortSkipResult } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -175,7 +175,8 @@ class Store {
       visitorQuests: defaultVisitorQuests,
       readingRoom: defaultReadingRoom,
       authenticity: defaultAuthenticity,
-      memoryCorridor: defaultMemoryCorridor
+      memoryCorridor: defaultMemoryCorridor,
+      memoryPuzzleRecovery: {}
     };
 
     if (!this.state.archive) {
@@ -208,6 +209,10 @@ class Store {
 
     if (!this.state.memoryCorridor) {
       this.state.memoryCorridor = defaultMemoryCorridor;
+    }
+
+    if (!this.state.memoryPuzzleRecovery) {
+      this.state.memoryPuzzleRecovery = {};
     }
 
     this.applyStateToData();
@@ -981,7 +986,8 @@ class Store {
         fragmentSortingProgress: 0,
         isMemoryComplete: false,
         currentEnding: null
-      }
+      },
+      memoryPuzzleRecovery: {}
     };
     this.applyStateToData();
     eventBus.emit('game:reset');
@@ -2861,6 +2867,300 @@ class Store {
     return true;
   }
 
+  initMemoryPuzzleState(puzzleId: string, chapterId: string): MemoryPuzzleState {
+    const existing = this.state.memoryPuzzleRecovery[puzzleId];
+    if (existing) {
+      return { ...existing };
+    }
+
+    const state: MemoryPuzzleState = {
+      puzzleId,
+      chapterId,
+      attempts: [],
+      hintsUsed: 0,
+      maxHints: 3,
+      skipped: false,
+      skipCost: 0,
+      startTime: Date.now(),
+      completedTime: null,
+      completed: false,
+      baseScore: GAME_CONFIG.MEMORY_PUZZLE.BASE_SCORE,
+      finalScore: GAME_CONFIG.MEMORY_PUZZLE.BASE_SCORE,
+      scoreMultiplier: GAME_CONFIG.MEMORY_PUZZLE.SCORE_MULTIPLIER_ONCE
+    };
+
+    this.state.memoryPuzzleRecovery[puzzleId] = state;
+    this.saveToStorage();
+    return { ...state };
+  }
+
+  getMemoryPuzzleState(puzzleId: string): MemoryPuzzleState | null {
+    const state = this.state.memoryPuzzleRecovery[puzzleId];
+    return state ? { ...state } : null;
+  }
+
+  getMemoryPuzzleAttemptCount(puzzleId: string): number {
+    const state = this.state.memoryPuzzleRecovery[puzzleId];
+    return state?.attempts.length || 0;
+  }
+
+  updateMemoryPuzzleState(puzzleId: string, state: MemoryPuzzleState): boolean {
+    if (!this.state.memoryPuzzleRecovery[puzzleId]) {
+      return false;
+    }
+    this.state.memoryPuzzleRecovery[puzzleId] = { ...state };
+    this.saveToStorage();
+    return true;
+  }
+
+  private analyzeMemorySortResult(
+    arrangedIds: string[],
+    correctOrder: string[]
+  ): {
+    correctPositions: number[];
+    wrongPositions: number[];
+    correctCount: number;
+  } {
+    const correctPositions: number[] = [];
+    const wrongPositions: number[] = [];
+
+    for (let i = 0; i < arrangedIds.length; i++) {
+      if (arrangedIds[i] === correctOrder[i]) {
+        correctPositions.push(i);
+      } else {
+        wrongPositions.push(i);
+      }
+    }
+
+    return {
+      correctPositions,
+      wrongPositions,
+      correctCount: correctPositions.length
+    };
+  }
+
+  private getCorrectOrder(fragmentIds: string[]): string[] {
+    const fragments = fragmentIds
+      .map(id => this.getClueById(id))
+      .filter(Boolean) as Clue[];
+    
+    return fragments
+      .sort((a, b) => (a.memoryOrder || 0) - (b.memoryOrder || 0))
+      .map(f => f.id);
+  }
+
+  generateMemorySortHint(
+    puzzleId: string,
+    arrangedIds: string[],
+    fragmentIds: string[]
+  ): MemorySortHint | null {
+    const state = this.state.memoryPuzzleRecovery[puzzleId];
+    if (!state) return null;
+    if (state.hintsUsed >= state.maxHints) return null;
+
+    const correctOrder = this.getCorrectOrder(fragmentIds);
+    const analysis = this.analyzeMemorySortResult(arrangedIds, correctOrder);
+    const hintLevel = (state.hintsUsed + 1) as 1 | 2 | 3;
+
+    let message = '';
+    let suggestedSwaps: { from: number; to: number; fragmentId: string }[] | undefined;
+    let firstWrongPosition: number | undefined;
+    let correctFragmentAtPosition: { position: number; fragmentId: string } | undefined;
+
+    if (hintLevel === 1) {
+      message = `你已正确排列 ${analysis.correctCount}/${fragmentIds.length} 个碎片。继续尝试！`;
+    } else if (hintLevel === 2) {
+      if (analysis.wrongPositions.length > 0) {
+        firstWrongPosition = analysis.wrongPositions[0];
+        message = `位置 ${firstWrongPosition + 1} 的碎片不正确。仔细想想这块记忆应该在什么时候发生？`;
+      } else {
+        message = '排列看起来都正确！';
+      }
+    } else if (hintLevel === 3) {
+      if (analysis.wrongPositions.length > 0) {
+        firstWrongPosition = analysis.wrongPositions[0];
+        correctFragmentAtPosition = {
+          position: firstWrongPosition,
+          fragmentId: correctOrder[firstWrongPosition]
+        };
+        const correctFragment = this.getClueById(correctFragmentAtPosition.fragmentId);
+        message = `位置 ${firstWrongPosition + 1} 应该是「${correctFragment?.name || '未知碎片'}」。`;
+
+        if (analysis.wrongPositions.length >= 2) {
+          const wrongId = arrangedIds[firstWrongPosition];
+          const correctPos = correctOrder.indexOf(wrongId);
+          if (correctPos !== -1) {
+            suggestedSwaps = [{
+              from: firstWrongPosition,
+              to: correctPos,
+              fragmentId: wrongId
+            }];
+          }
+        }
+      } else {
+        message = '排列完全正确！';
+      }
+    }
+
+    state.hintsUsed++;
+    this.saveToStorage();
+
+    eventBus.emit('memorypuzzle:hint-used', {
+      puzzleId,
+      hintLevel,
+      hintCost: GAME_CONFIG.MEMORY_PUZZLE.HINT_COST
+    });
+
+    return {
+      level: hintLevel,
+      message,
+      correctPositions: analysis.correctPositions,
+      suggestedSwaps,
+      firstWrongPosition,
+      correctFragmentAtPosition
+    };
+  }
+
+  calculateSkipCost(puzzleId: string): number {
+    const state = this.state.memoryPuzzleRecovery[puzzleId];
+    if (!state) return GAME_CONFIG.MEMORY_PUZZLE.SKIP_BASE_COST;
+
+    const attemptCount = state.attempts.length;
+    const cost = GAME_CONFIG.MEMORY_PUZZLE.SKIP_BASE_COST - 
+      attemptCount * GAME_CONFIG.MEMORY_PUZZLE.SKIP_COST_REDUCTION_PER_ATTEMPT;
+    
+    return Math.max(cost, GAME_CONFIG.MEMORY_PUZZLE.MIN_SKIP_COST);
+  }
+
+  skipMemoryPuzzle(puzzleId: string, mechanismId?: string): MemorySortSkipResult {
+    const state = this.state.memoryPuzzleRecovery[puzzleId];
+    if (!state) {
+      return {
+        success: false,
+        skipCost: 0,
+        finalScore: 0,
+        message: '记忆拼图状态不存在'
+      };
+    }
+
+    if (state.completed) {
+      return {
+        success: false,
+        skipCost: 0,
+        finalScore: state.finalScore,
+        message: '记忆拼图已完成'
+      };
+    }
+
+    const skipCost = this.calculateSkipCost(puzzleId);
+    state.skipped = true;
+    state.skipCost = skipCost;
+    state.completed = true;
+    state.completedTime = Date.now();
+    state.scoreMultiplier = GAME_CONFIG.MEMORY_PUZZLE.SCORE_MULTIPLIER_SKIPPED;
+
+    const scoreResult = this.calculateMemoryPuzzleScore(puzzleId);
+    state.finalScore = scoreResult.finalScore;
+
+    if (mechanismId) {
+      const mech = this.mechanisms.find(m => m.id === mechanismId);
+      if (mech && !mech.solved) {
+        this.solveMechanism(mechanismId);
+      }
+    }
+
+    const chapter = this.chapters.find(c => c.id === state.chapterId);
+    if (chapter) {
+      this.state.visitorQuests.currentChapterScore += state.finalScore;
+      this.state.visitorQuests.totalScore += state.finalScore;
+    }
+
+    this.saveToStorage();
+
+    eventBus.emit('memorypuzzle:skipped', {
+      puzzleId,
+      skipCost,
+      finalScore: state.finalScore
+    });
+
+    return {
+      success: true,
+      skipCost,
+      finalScore: state.finalScore,
+      message: `已跳过记忆拼图，扣除 ${skipCost} 分，获得 ${state.finalScore} 分`
+    };
+  }
+
+  calculateMemoryPuzzleScore(puzzleId: string): MemoryPuzzleScoreResult {
+    const state = this.state.memoryPuzzleRecovery[puzzleId];
+    if (!state) {
+      return {
+        baseScore: 0,
+        attemptPenalty: 0,
+        hintPenalty: 0,
+        skipPenalty: 0,
+        speedBonus: 0,
+        perfectBonus: 0,
+        finalScore: 0,
+        rank: 'C',
+        multiplier: 0
+      };
+    }
+
+    const config = GAME_CONFIG.MEMORY_PUZZLE;
+    const attemptCount = state.attempts.length;
+    
+    let attemptPenalty = 0;
+    if (attemptCount > config.MAX_ATTEMPTS_FOR_FULL_SCORE) {
+      attemptPenalty = (attemptCount - config.MAX_ATTEMPTS_FOR_FULL_SCORE) * config.ATTEMPT_PENALTY;
+    }
+
+    const hintPenalty = state.hintsUsed * config.HINT_COST;
+    const skipPenalty = state.skipped ? state.skipCost : 0;
+
+    let speedBonus = 0;
+    if (!state.skipped && state.completedTime) {
+      const duration = state.completedTime - state.startTime;
+      if (duration < config.SPEED_BONUS_THRESHOLD) {
+        speedBonus = Math.round(
+          (1 - duration / config.SPEED_BONUS_THRESHOLD) * config.SPEED_BONUS_MAX
+        );
+      }
+    }
+
+    let perfectBonus = 0;
+    if (!state.skipped && attemptCount === 1 && state.hintsUsed === 0) {
+      perfectBonus = config.PERFECT_BONUS;
+    }
+
+    let multiplier: number = config.SCORE_MULTIPLIER_ONCE;
+    if (state.skipped) {
+      multiplier = config.SCORE_MULTIPLIER_SKIPPED;
+    } else if (state.hintsUsed > 0) {
+      multiplier = config.SCORE_MULTIPLIER_HINT;
+    }
+
+    const rawScore = config.BASE_SCORE - attemptPenalty - hintPenalty - skipPenalty + speedBonus + perfectBonus;
+    const finalScore = Math.max(Math.round(rawScore * multiplier), 0);
+
+    let rank: 'S' | 'A' | 'B' | 'C' = 'C';
+    if (finalScore >= 450) rank = 'S';
+    else if (finalScore >= 350) rank = 'A';
+    else if (finalScore >= 250) rank = 'B';
+
+    return {
+      baseScore: config.BASE_SCORE,
+      attemptPenalty,
+      hintPenalty,
+      skipPenalty,
+      speedBonus,
+      perfectBonus,
+      finalScore,
+      rank,
+      multiplier
+    };
+  }
+
   setMemoryComplete(complete: boolean): void {
     this.state.memoryCorridor.isMemoryComplete = complete;
     
@@ -3081,27 +3381,117 @@ class Store {
       return { success: false, reason: '机关已解开' };
     }
 
-    const isCorrect = this.checkMechanismMemorySort(mechanismId, sortedFragmentIds);
+    const puzzleId = mechanismId;
+    const chapterId = this.state.currentChapter;
+    const state = this.initMemoryPuzzleState(puzzleId, chapterId);
+
+    if (state.completed) {
+      return { success: false, reason: '记忆拼图已完成' };
+    }
+
+    const fragmentIds = mech.memoryCorridorPhase?.fragmentIds || 
+      this.getMemoryFragments(chapterId).map(f => f.id);
+    
+    const correctOrder = this.getCorrectOrder(fragmentIds);
+    const analysis = this.analyzeMemorySortResult(sortedFragmentIds, correctOrder);
+    const isCorrect = analysis.wrongPositions.length === 0;
+
+    const attempt: MemoryPuzzleAttempt = {
+      attemptNumber: state.attempts.length + 1,
+      arrangedIds: [...sortedFragmentIds],
+      correctCount: analysis.correctCount,
+      correctPositions: analysis.correctPositions,
+      wrongPositions: analysis.wrongPositions,
+      timestamp: Date.now()
+    };
+    state.attempts.push(attempt);
+    this.state.memoryPuzzleRecovery[puzzleId] = state;
 
     if (isCorrect) {
-      const solved = this.solveMechanism(mechanismId);
-      if (solved) {
-        return {
-          success: true,
-          correct: true,
-          reward: mech.reward,
-          message: '记忆碎片排序正确！'
-        };
+      const checkResult = this.checkMechanismMemorySort(mechanismId, sortedFragmentIds);
+      if (checkResult) {
+        const solved = this.solveMechanism(mechanismId);
+        if (solved) {
+          state.completed = true;
+          state.completedTime = Date.now();
+          
+          const scoreResult = this.calculateMemoryPuzzleScore(puzzleId);
+          state.finalScore = scoreResult.finalScore;
+          state.scoreMultiplier = scoreResult.multiplier;
+          
+          const chapter = this.chapters.find(c => c.id === chapterId);
+          if (chapter) {
+            this.state.visitorQuests.currentChapterScore += state.finalScore;
+            this.state.visitorQuests.totalScore += state.finalScore;
+          }
+          
+          this.state.memoryPuzzleRecovery[puzzleId] = state;
+          this.saveToStorage();
+
+          eventBus.emit('memorypuzzle:complete', {
+            puzzleId,
+            attemptCount: state.attempts.length,
+            hintsUsed: state.hintsUsed,
+            score: state.finalScore,
+            scoreInfo: scoreResult
+          });
+
+          return {
+            success: true,
+            correct: true,
+            reward: mech.reward,
+            message: '记忆碎片排序正确！',
+            attempts: state.attempts.length,
+            correctPositions: analysis.correctPositions,
+            wrongPositions: analysis.wrongPositions,
+            correctCount: analysis.correctCount,
+            totalCount: fragmentIds.length,
+            scoreInfo: scoreResult,
+            canGetHint: state.hintsUsed < state.maxHints,
+            hintCost: GAME_CONFIG.MEMORY_PUZZLE.HINT_COST,
+            canSkip: !state.completed,
+            skipCost: this.calculateSkipCost(puzzleId)
+          };
+        }
       }
       return { success: false, reason: '解锁失败' };
     }
 
+    this.saveToStorage();
+
     const progress = this.getMemoryFragmentSortingProgress();
+    const canGetHint = state.hintsUsed < state.maxHints;
+    
+    let hint: MemorySortHint | undefined;
+    if (state.attempts.length >= 2 && canGetHint) {
+      const autoHint = this.generateMemorySortHint(puzzleId, sortedFragmentIds, fragmentIds);
+      if (autoHint) {
+        hint = autoHint;
+      }
+    }
+
+    eventBus.emit('memorypuzzle:failed', {
+      puzzleId,
+      attemptNumber: attempt.attemptNumber,
+      correctCount: analysis.correctCount,
+      totalCount: fragmentIds.length
+    });
+
     return {
       success: true,
       correct: false,
       progress,
-      message: '顺序不正确，请重新排列'
+      message: `顺序不正确，你正确排列了 ${analysis.correctCount}/${fragmentIds.length} 个碎片`,
+      attempts: state.attempts.length,
+      hint,
+      correctPositions: analysis.correctPositions,
+      wrongPositions: analysis.wrongPositions,
+      correctCount: analysis.correctCount,
+      totalCount: fragmentIds.length,
+      canGetHint,
+      hintCost: GAME_CONFIG.MEMORY_PUZZLE.HINT_COST,
+      canSkip: !state.completed,
+      skipCost: this.calculateSkipCost(puzzleId)
     };
   }
 
