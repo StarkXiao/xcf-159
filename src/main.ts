@@ -3,20 +3,23 @@ import { Game } from './game/Game';
 import { eventBus } from './game/EventBus';
 import { store } from './game/Store';
 import { audioModule } from './modules/AudioModule';
+import clueBackpackDebug from './utils/ClueBackpackDebug';
 
 let game: Game | null = null;
 
 declare global {
   interface Window {
-    __amberDebug: {
-      audioModule: typeof audioModule;
-      eventBus: typeof eventBus;
-      store: typeof store;
-      testAudio: () => string;
-      simulateFullGame: () => string;
-      collectAllClues: () => string;
-      solveAllMechanisms: () => string;
-      reset: () => void;
+    __amberDebug?: {
+      audioModule?: typeof audioModule;
+      eventBus?: typeof eventBus;
+      store?: typeof store;
+      clueBackpack?: typeof clueBackpackDebug;
+      testAudio?: () => string;
+      simulateFullGame?: () => string;
+      collectAllClues?: () => string;
+      solveAllMechanisms?: () => string;
+      reset?: () => void;
+      debugClueBackpack?: () => boolean[];
     };
   }
 }
@@ -28,6 +31,12 @@ window.addEventListener('load', () => {
     audioModule,
     eventBus,
     store,
+    clueBackpack: clueBackpackDebug,
+
+    debugClueBackpack: () => {
+      console.log('🚀 执行线索背包专项调试...');
+      return clueBackpackDebug.runAll();
+    },
 
     testAudio: () => {
       console.log('=== 音频控制测试 ===');

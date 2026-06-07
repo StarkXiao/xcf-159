@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose, ChapterKeyPoint, ChapterIncompleteCondition, MemoryFragmentGap, ChapterProgressAnalysis, ChapterKeyPointReview } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -3663,6 +3663,468 @@ class Store {
         }
         return a.name.localeCompare(b.name, 'zh-CN');
       });
+  }
+
+  getChapterKeyPoints(chapterId: string): ChapterKeyPoint[] {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter) return [];
+
+    return chapter.keyPoints.map(kp => {
+      let isCompleted = false;
+
+      if (kp.type === 'clue') {
+        isCompleted = this.state.collectedClues.includes(kp.targetId);
+      } else if (kp.type === 'mechanism') {
+        isCompleted = this.state.solvedMechanisms.includes(kp.targetId);
+      } else if (kp.type === 'exhibition') {
+        isCompleted = this.state.unlockedExhibitions.includes(kp.targetId);
+      } else if (kp.type === 'story') {
+        if (kp.targetId.startsWith('chapter_')) {
+          const targetChapter = this.chapters.find(c => c.id === kp.targetId);
+          isCompleted = targetChapter?.unlocked || false;
+        } else {
+          isCompleted = true;
+        }
+      } else if (kp.type === 'choice') {
+        isCompleted = this.state.memoryCorridor.madeChoices[kp.targetId] !== undefined;
+      }
+
+      return {
+        ...kp,
+        isCompleted,
+        completedAt: isCompleted ? Date.now() : undefined
+      };
+    });
+  }
+
+  updateKeyPointCompletion(chapterId: string, keyPointId: string): boolean {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter) return false;
+
+    const keyPoint = chapter.keyPoints.find(kp => kp.id === keyPointId);
+    if (!keyPoint) return false;
+
+    keyPoint.isCompleted = true;
+    keyPoint.completedAt = Date.now();
+
+    eventBus.emit('chapter:keypoint-complete', { chapterId, keyPointId, keyPoint });
+    this.saveToStorage();
+    return true;
+  }
+
+  getIncompleteConditions(chapterId: string): ChapterIncompleteCondition[] {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter) return [];
+
+    const conditions: ChapterIncompleteCondition[] = [];
+
+    chapter.requiredClues.forEach((clueId, index) => {
+      const clue = this.clues.find(c => c.id === clueId);
+      if (!clue || this.state.collectedClues.includes(clueId)) return;
+
+      const exhibition = this.findExhibitionForClue(clueId);
+
+      conditions.push({
+        id: `cond_${chapterId}_clue_${index}`,
+        chapterId,
+        type: 'clue',
+        targetId: clueId,
+        targetName: clue.name,
+        description: `还未收集线索「${clue.name}」`,
+        hint: clue.hint || this.generateClueHint(clue),
+        location: exhibition?.name || '未知区域',
+        exhibitionId: exhibition?.id,
+        priority: 'high'
+      });
+    });
+
+    const chapterMechanisms = this.getChapterMechanisms(chapterId);
+    chapterMechanisms.forEach((mech, index) => {
+      if (this.state.solvedMechanisms.includes(mech.id)) return;
+
+      const exhibition = this.findExhibitionForMechanism(mech.id);
+      const requiredClues = this.getRequiredCluesForMechanism(mech.id);
+      const missingClues = requiredClues.filter(cid => !this.state.collectedClues.includes(cid));
+
+      conditions.push({
+        id: `cond_${chapterId}_mech_${index}`,
+        chapterId,
+        type: 'mechanism',
+        targetId: mech.id,
+        targetName: mech.displayName,
+        description: `还未解开机关「${mech.displayName}」`,
+        hint: missingClues.length > 0 
+          ? `需要先收集线索：${missingClues.map(cid => this.clues.find(c => c.id === cid)?.name).join('、')}` 
+          : mech.hint,
+        location: exhibition?.name || '未知区域',
+        exhibitionId: exhibition?.id,
+        priority: missingClues.length > 0 ? 'medium' : 'high'
+      });
+    });
+
+    if (chapter.branchChoices) {
+      chapter.branchChoices.forEach((branchId, index) => {
+        if (this.state.memoryCorridor.madeChoices[branchId]) return;
+
+        const branch = this.branchChoices.find(b => b.id === branchId);
+        const requiredClues = branch?.requiredClues || [];
+        const missingClues = requiredClues.filter(cid => !this.state.collectedClues.includes(cid));
+
+        conditions.push({
+          id: `cond_${chapterId}_choice_${index}`,
+          chapterId,
+          type: 'choice',
+          targetId: branchId,
+          targetName: branch?.text || '关键抉择',
+          description: `还未做出抉择「${branch?.text || '关键抉择'}」`,
+          hint: missingClues.length > 0
+            ? `需要先收集线索：${missingClues.map(cid => this.clues.find(c => c.id === cid)?.name).join('、')}`
+            : '准备好后即可面对人生的重要选择',
+          priority: missingClues.length > 0 ? 'medium' : 'high'
+        });
+      });
+    }
+
+    const memoryClues = this.clues.filter(c => c.chapterId === chapterId && c.isMemory);
+    memoryClues.forEach((clue, index) => {
+      if (this.state.collectedClues.includes(clue.id)) return;
+
+      const exhibition = this.findExhibitionForClue(clue.id);
+
+      conditions.push({
+        id: `cond_${chapterId}_memory_${index}`,
+        chapterId,
+        type: 'memory',
+        targetId: clue.id,
+        targetName: clue.name,
+        description: `记忆碎片「${clue.name}」还未收集`,
+        hint: `探索${exhibition?.name || '相关区域'}，寻找隐藏的记忆碎片`,
+        location: exhibition?.name || '未知区域',
+        exhibitionId: exhibition?.id,
+        priority: 'medium'
+      });
+    });
+
+    return conditions.sort((a, b) => {
+      const priorityOrder = { high: 0, medium: 1, low: 2 };
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    });
+  }
+
+  getMemoryFragmentGaps(chapterId: string): MemoryFragmentGap[] {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter) return [];
+
+    const memoryClues = this.clues.filter(c => c.chapterId === chapterId && c.isMemory);
+    
+    return memoryClues.map(clue => {
+      const exhibition = this.findExhibitionForClue(clue.id);
+      const nearbyClues = this.findNearbyClues(clue.id, exhibition?.id);
+      const isCollected = this.state.collectedClues.includes(clue.id);
+
+      let requiredForPhase: number | undefined;
+      if (chapter.memoryPhases) {
+        for (const phase of chapter.memoryPhases) {
+          if (phase.requiredClues.includes(clue.id)) {
+            requiredForPhase = phase.phase;
+            break;
+          }
+        }
+      }
+
+      return {
+        id: `gap_${chapterId}_${clue.id}`,
+        chapterId,
+        fragmentId: clue.id,
+        fragmentName: clue.name,
+        memoryOrder: clue.memoryOrder || 0,
+        description: clue.description,
+        location: exhibition?.name || '未知区域',
+        exhibitionId: exhibition?.id || '',
+        hint: this.generateMemoryGapHint(clue, isCollected, requiredForPhase),
+        nearbyClues,
+        isCollected,
+        requiredForPhase
+      };
+    }).sort((a, b) => a.memoryOrder - b.memoryOrder);
+  }
+
+  analyzeChapterProgress(chapterId: string): ChapterProgressAnalysis {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter) {
+      return {
+        chapterId,
+        chapterTitle: '未知章节',
+        completionPercentage: 0,
+        totalKeyPoints: 0,
+        completedKeyPoints: 0,
+        keyPoints: [],
+        incompleteConditions: [],
+        memoryGaps: [],
+        totalMemoryFragments: 0,
+        collectedMemoryFragments: 0,
+        nextSuggestion: '章节不存在',
+        estimatedRemainingTime: '0分钟'
+      };
+    }
+
+    const keyPoints = this.getChapterKeyPoints(chapterId);
+    const completedKeyPoints = keyPoints.filter(kp => kp.isCompleted).length;
+    const incompleteConditions = this.getIncompleteConditions(chapterId);
+    const memoryGaps = this.getMemoryFragmentGaps(chapterId);
+    const totalMemoryFragments = memoryGaps.length;
+    const collectedMemoryFragments = memoryGaps.filter(g => g.isCollected).length;
+
+    const clueProgress = chapter.requiredClues.length > 0
+      ? chapter.requiredClues.filter(id => this.state.collectedClues.includes(id)).length / chapter.requiredClues.length
+      : 1;
+
+    const keyPointProgress = keyPoints.length > 0 ? completedKeyPoints / keyPoints.length : 1;
+    const memoryProgress = totalMemoryFragments > 0 ? collectedMemoryFragments / totalMemoryFragments : 1;
+
+    const completionPercentage = Math.round(((clueProgress + keyPointProgress + memoryProgress) / 3) * 100);
+
+    const nextSuggestion = this.generateNextSuggestion(incompleteConditions, memoryGaps);
+    const estimatedRemainingTime = this.estimateRemainingTime(incompleteConditions.length, memoryGaps.filter(g => !g.isCollected).length);
+
+    return {
+      chapterId,
+      chapterTitle: chapter.title,
+      completionPercentage,
+      totalKeyPoints: keyPoints.length,
+      completedKeyPoints,
+      keyPoints,
+      incompleteConditions,
+      memoryGaps,
+      totalMemoryFragments,
+      collectedMemoryFragments,
+      nextSuggestion,
+      estimatedRemainingTime
+    };
+  }
+
+  getChapterKeyPointReview(chapterId: string): ChapterKeyPointReview | null {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter || !chapter.completed) return null;
+
+    const completedKeyPoints = this.getChapterKeyPoints(chapterId).filter(kp => kp.isCompleted);
+    const memoryFragments = this.getMemoryFragments(chapterId);
+    const importantChoices = this.getChoiceSummary().filter(c => {
+      const branch = this.branchChoices.find(b => b.id === c.branchId);
+      return branch?.chapterId === chapterId;
+    });
+
+    return {
+      chapterId,
+      chapterTitle: chapter.title,
+      completedKeyPoints,
+      totalPlayTime: Date.now() - this.chapterStartTime,
+      chapterPlayTime: Date.now() - this.chapterStartTime,
+      storySummary: chapter.storyText,
+      memoryFragmentsCollected: memoryFragments,
+      importantChoices
+    };
+  }
+
+  private findExhibitionForClue(clueId: string): Exhibition | undefined {
+    for (const exhibition of this.exhibitions) {
+      const clueHotspot = exhibition.hotspots.find(h => h.type === 'clue' && h.targetId === clueId);
+      if (clueHotspot) return exhibition;
+    }
+    return undefined;
+  }
+
+  private findExhibitionForMechanism(mechanismId: string): Exhibition | undefined {
+    for (const exhibition of this.exhibitions) {
+      const mechHotspot = exhibition.hotspots.find(h => h.type === 'mechanism' && h.targetId === mechanismId);
+      if (mechHotspot) return exhibition;
+    }
+    return undefined;
+  }
+
+  private findNearbyClues(clueId: string, exhibitionId?: string): string[] {
+    if (!exhibitionId) return [];
+    
+    const exhibition = this.exhibitions.find(e => e.id === exhibitionId);
+    if (!exhibition) return [];
+
+    return exhibition.hotspots
+      .filter(h => h.type === 'clue' && h.targetId !== clueId)
+      .map(h => h.targetId);
+  }
+
+  private getChapterMechanisms(chapterId: string): Mechanism[] {
+    const chapter = this.chapters.find(c => c.id === chapterId);
+    if (!chapter) return [];
+
+    const mechanisms: Mechanism[] = [];
+    for (const exhId of chapter.exhibitions) {
+      const exhibition = this.exhibitions.find(e => e.id === exhId);
+      if (exhibition) {
+        for (const hotspot of exhibition.hotspots) {
+          if (hotspot.type === 'mechanism') {
+            const mech = this.mechanisms.find(m => m.id === hotspot.targetId);
+            if (mech && !mechanisms.find(m => m.id === mech.id)) {
+              mechanisms.push(mech);
+            }
+          }
+        }
+      }
+    }
+    return mechanisms;
+  }
+
+  private getRequiredCluesForMechanism(mechanismId: string): string[] {
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech) return [];
+
+    const requiredClues: string[] = [];
+    
+    if (mech.requiredHistoryClues) {
+      requiredClues.push(...mech.requiredHistoryClues);
+    }
+    if (mech.requiredArtClues) {
+      requiredClues.push(...mech.requiredArtClues);
+    }
+    if (mech.memoryCorridorPhase?.fragmentIds) {
+      requiredClues.push(...mech.memoryCorridorPhase.fragmentIds);
+    }
+
+    const purposeClues = this.clues
+      .filter(c => c.mechanismPurpose?.some(p => p.mechanismId === mechanismId))
+      .map(c => c.id);
+    
+    requiredClues.push(...purposeClues);
+
+    return [...new Set(requiredClues)];
+  }
+
+  private generateClueHint(clue: Clue): string {
+    if (clue.mechanismPurpose && clue.mechanismPurpose.length > 0) {
+      const purpose = clue.mechanismPurpose[0];
+      return `这个线索与「${purpose.mechanismName}」有关，${purpose.purpose}`;
+    }
+    return '仔细探索周围的环境，寻找隐藏的线索';
+  }
+
+  private generateMemoryGapHint(clue: Clue, isCollected: boolean, requiredForPhase?: number): string {
+    if (isCollected) {
+      return '✅ 已收集';
+    }
+    
+    if (clue.mechanismPurpose && clue.mechanismPurpose.length > 0) {
+      const purpose = clue.mechanismPurpose[0];
+      return `💡 这个记忆碎片将用于「${purpose.mechanismName}」`;
+    }
+    
+    if (requiredForPhase) {
+      return `💡 这是第${requiredForPhase}阶段需要的记忆碎片`;
+    }
+    
+    return '💡 继续探索，找到隐藏的记忆碎片';
+  }
+
+  private generateNextSuggestion(conditions: ChapterIncompleteCondition[], gaps: MemoryFragmentGap[]): string {
+    if (conditions.length === 0 && gaps.every(g => g.isCollected)) {
+      return '🎉 本章节所有内容已完成！';
+    }
+
+    const highPriorityCondition = conditions.find(c => c.priority === 'high');
+    if (highPriorityCondition) {
+      return `💡 建议先去「${highPriorityCondition.location}」${highPriorityCondition.hint}`;
+    }
+
+    const uncollectedGap = gaps.find(g => !g.isCollected);
+    if (uncollectedGap) {
+      return `💡 建议前往「${uncollectedGap.location}」寻找记忆碎片「${uncollectedGap.fragmentName}」`;
+    }
+
+    const mediumPriorityCondition = conditions.find(c => c.priority === 'medium');
+    if (mediumPriorityCondition) {
+      return `💡 建议前往「${mediumPriorityCondition.location}」${mediumPriorityCondition.hint}`;
+    }
+
+    return '继续探索博物馆，发现更多秘密';
+  }
+
+  private estimateRemainingTime(incompleteCount: number, missingMemoryCount: number): string {
+    const totalTasks = incompleteCount + missingMemoryCount;
+    const estimatedMinutes = Math.max(1, Math.round(totalTasks * 3));
+    
+    if (estimatedMinutes < 60) {
+      return `约${estimatedMinutes}分钟`;
+    }
+    
+    const hours = Math.floor(estimatedMinutes / 60);
+    const minutes = estimatedMinutes % 60;
+    
+    if (minutes === 0) {
+      return `约${hours}小时`;
+    }
+    return `约${hours}小时${minutes}分钟`;
+  }
+
+  navigateToExhibition(exhibitionId: string): boolean {
+    const exhibition = this.exhibitions.find(e => e.id === exhibitionId);
+    if (!exhibition) return false;
+    if (!exhibition.unlocked) {
+      eventBus.emit('navigation:blocked', { exhibitionId, reason: '展区未解锁' });
+      return false;
+    }
+
+    return this.setCurrentExhibition(exhibitionId);
+  }
+
+  getNavigationHint(targetId: string, targetType: 'clue' | 'mechanism' | 'exhibition'): { path: string[]; hint: string } {
+    const currentExhibition = this.getCurrentExhibition();
+    const path: string[] = [];
+    let hint = '';
+
+    if (targetType === 'exhibition') {
+      const targetExhibition = this.exhibitions.find(e => e.id === targetId);
+      if (targetExhibition) {
+        if (currentExhibition?.id === targetId) {
+          hint = '你已在目标展区';
+        } else if (!targetExhibition.unlocked) {
+          hint = '目标展区尚未解锁，需要完成前置任务';
+        } else {
+          path.push(targetId);
+          hint = `前往「${targetExhibition.name}」`;
+        }
+      }
+    } else if (targetType === 'clue') {
+      const targetExhibition = this.findExhibitionForClue(targetId);
+      const clue = this.clues.find(c => c.id === targetId);
+      
+      if (targetExhibition && clue) {
+        if (currentExhibition?.id === targetExhibition.id) {
+          path.push(targetExhibition.id);
+          hint = `在「${targetExhibition.name}」中寻找「${clue.name}」`;
+        } else if (!targetExhibition.unlocked) {
+          hint = `「${clue.name}」所在的「${targetExhibition.name}」尚未解锁`;
+        } else {
+          path.push(targetExhibition.id);
+          hint = `先前往「${targetExhibition.name}」，然后寻找「${clue.name}」`;
+        }
+      }
+    } else if (targetType === 'mechanism') {
+      const targetExhibition = this.findExhibitionForMechanism(targetId);
+      const mechanism = this.mechanisms.find(m => m.id === targetId);
+      
+      if (targetExhibition && mechanism) {
+        if (currentExhibition?.id === targetExhibition.id) {
+          path.push(targetExhibition.id);
+          hint = `在「${targetExhibition.name}」中寻找「${mechanism.displayName}」`;
+        } else if (!targetExhibition.unlocked) {
+          hint = `「${mechanism.displayName}」所在的「${targetExhibition.name}」尚未解锁`;
+        } else {
+          path.push(targetExhibition.id);
+          hint = `先前往「${targetExhibition.name}」，然后寻找「${mechanism.displayName}」`;
+        }
+      }
+    }
+
+    return { path, hint };
   }
 }
 

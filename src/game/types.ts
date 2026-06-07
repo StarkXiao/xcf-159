@@ -14,6 +14,7 @@ export interface Clue {
   branchChoiceId?: string;
   isEndingClue?: boolean;
   endingId?: string;
+  hint?: string;
   mechanismPurpose?: MechanismPurpose[];
 }
 
@@ -145,6 +146,7 @@ export interface Chapter {
   storyText: string;
   completed: boolean;
   unlocked: boolean;
+  keyPoints: ChapterKeyPoint[];
   isDualHall?: boolean;
   historyExhibitions?: string[];
   artExhibitions?: string[];
@@ -687,4 +689,94 @@ export interface FinalReviewTab {
   id: 'clues' | 'mechanisms' | 'choices' | 'endings';
   label: string;
   icon: string;
+}
+
+export interface ChapterKeyPoint {
+  id: string;
+  chapterId: string;
+  name: string;
+  description: string;
+  icon: string;
+  order: number;
+  type: 'clue' | 'mechanism' | 'exhibition' | 'story' | 'choice';
+  targetId: string;
+  isCompleted: boolean;
+  completedAt?: number;
+  hint?: string;
+  exhibitionId?: string;
+  requiredForPhase?: number;
+  relatedClueIds?: string[];
+  relatedMechanismIds?: string[];
+}
+
+export interface ChapterIncompleteCondition {
+  id: string;
+  chapterId: string;
+  type: 'clue' | 'mechanism' | 'exhibition' | 'choice' | 'memory';
+  targetId: string;
+  targetName: string;
+  description: string;
+  hint: string;
+  location?: string;
+  exhibitionId?: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export interface MemoryFragmentGap {
+  id: string;
+  chapterId: string;
+  fragmentId: string;
+  fragmentName: string;
+  memoryOrder: number;
+  description: string;
+  location: string;
+  exhibitionId: string;
+  hint: string;
+  nearbyClues: string[];
+  isCollected: boolean;
+  requiredForPhase?: number;
+}
+
+export interface ChapterProgressAnalysis {
+  chapterId: string;
+  chapterTitle: string;
+  completionPercentage: number;
+  totalKeyPoints: number;
+  completedKeyPoints: number;
+  keyPoints: ChapterKeyPoint[];
+  incompleteConditions: ChapterIncompleteCondition[];
+  memoryGaps: MemoryFragmentGap[];
+  totalMemoryFragments: number;
+  collectedMemoryFragments: number;
+  nextSuggestion: string;
+  estimatedRemainingTime: string;
+}
+
+export interface ChapterProgressState {
+  currentChapterKeyPoints: ChapterKeyPoint[];
+  viewedKeyPoints: string[];
+  lastProgressCheck: number;
+  gapNotificationShown: string[];
+}
+
+export interface ChapterKeyPointReview {
+  chapterId: string;
+  chapterTitle: string;
+  completedKeyPoints: ChapterKeyPoint[];
+  totalPlayTime: number;
+  chapterPlayTime: number;
+  storySummary: string;
+  memoryFragmentsCollected: Clue[];
+  importantChoices: FinalReviewChoiceSummary[];
+}
+
+export type ProgressPanelTab = 'overview' | 'keypoints' | 'incomplete' | 'memorygaps';
+
+export interface ProgressEvents {
+  'chapter:keypoint-complete': { chapterId: string; keyPointId: string; keyPoint: ChapterKeyPoint };
+  'progress:chapter-complete': { chapterId: string };
+  'progress:gap-detected': { chapterId: string; gap: MemoryFragmentGap };
+  'progress:incomplete-found': { chapterId: string; condition: ChapterIncompleteCondition };
+  'navigation:blocked': { exhibitionId: string; reason: string };
+  'exhibition:change': { exhibitionId: string };
 }
