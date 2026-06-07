@@ -282,7 +282,15 @@ export const AUTHENTICITY_CLUES = [
     icon: '📓',
     chapterId: 'chapter_5',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_authenticity',
+        mechanismName: '藏品真伪鉴定',
+        purpose: '提供鉴定方法和要点指导',
+        exhibitionId: 'exhibition_auth_1'
+      }
+    ]
   },
   {
     id: 'clue_auth_2',
@@ -291,7 +299,15 @@ export const AUTHENTICITY_CLUES = [
     icon: '🔍',
     chapterId: 'chapter_5',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_authenticity',
+        mechanismName: '藏品真伪鉴定',
+        purpose: '观察文物表面细节的工具',
+        exhibitionId: 'exhibition_auth_1'
+      }
+    ]
   },
   {
     id: 'clue_auth_3',
@@ -300,7 +316,15 @@ export const AUTHENTICITY_CLUES = [
     icon: '💡',
     chapterId: 'chapter_5',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_authenticity',
+        mechanismName: '藏品真伪鉴定',
+        purpose: '检测宝石是否经过人工处理',
+        exhibitionId: 'exhibition_auth_1'
+      }
+    ]
   },
   {
     id: 'clue_auth_4',
@@ -310,7 +334,15 @@ export const AUTHENTICITY_CLUES = [
     chapterId: 'chapter_5',
     isMemory: true,
     memoryOrder: 1,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_authenticity',
+        mechanismName: '藏品真伪鉴定',
+        purpose: '验证藏品来源和真实性',
+        exhibitionId: 'exhibition_auth_1'
+      }
+    ]
   },
   {
     id: 'clue_auth_final',
@@ -320,6 +352,14 @@ export const AUTHENTICITY_CLUES = [
     chapterId: 'chapter_5',
     isMemory: true,
     memoryOrder: 2,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_auth_final',
+        mechanismName: '爷爷的终极秘密',
+        purpose: '提供最终密码线索：永恒',
+        exhibitionId: 'exhibition_auth_final'
+      }
+    ]
   }
 ];

@@ -9,7 +9,15 @@ export const CLUES: Clue[] = [
     icon: '📷',
     chapterId: 'chapter_1',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_1',
+        mechanismName: '古老密码锁',
+        purpose: '提供密码线索：照片上的年份1998',
+        exhibitionId: 'exhibition_2'
+      }
+    ]
   },
   {
     id: 'clue_2',
@@ -19,7 +27,15 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_1',
     isMemory: true,
     memoryOrder: 1,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_2',
+        mechanismName: '记忆机关',
+        purpose: '记忆排序第1位：琥珀吊坠的记忆',
+        exhibitionId: 'exhibition_4'
+      }
+    ]
   },
   {
     id: 'clue_3',
@@ -29,7 +45,15 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_1',
     isMemory: true,
     memoryOrder: 2,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_2',
+        mechanismName: '记忆机关',
+        purpose: '记忆排序第2位：日记的记忆',
+        exhibitionId: 'exhibition_4'
+      }
+    ]
   },
   {
     id: 'clue_4',
@@ -39,7 +63,15 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_1',
     isMemory: true,
     memoryOrder: 3,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_2',
+        mechanismName: '记忆机关',
+        purpose: '记忆排序第3位：医院手环的记忆',
+        exhibitionId: 'exhibition_4'
+      }
+    ]
   },
   {
     id: 'clue_5',
@@ -48,7 +80,8 @@ export const CLUES: Clue[] = [
     icon: '🎵',
     chapterId: 'chapter_1',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: []
   },
   {
     id: 'clue_6',
@@ -57,7 +90,15 @@ export const CLUES: Clue[] = [
     icon: '🔑',
     chapterId: 'chapter_2',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_3',
+        mechanismName: '修复室之门',
+        purpose: '开启修复室大门的钥匙',
+        exhibitionId: 'exhibition_5'
+      }
+    ]
   },
   {
     id: 'clue_7',
@@ -67,7 +108,8 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_2',
     isMemory: true,
     memoryOrder: 1,
-    collected: false
+    collected: false,
+    mechanismPurpose: []
   },
   {
     id: 'clue_8',
@@ -77,7 +119,8 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_2',
     isMemory: true,
     memoryOrder: 2,
-    collected: false
+    collected: false,
+    mechanismPurpose: []
   },
   {
     id: 'clue_9',
@@ -87,7 +130,15 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_2',
     isMemory: true,
     memoryOrder: 3,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_3',
+        mechanismName: '修复室之门',
+        purpose: '提供密码线索：怀表停止的时间315',
+        exhibitionId: 'exhibition_5'
+      }
+    ]
   },
   {
     id: 'clue_10',
@@ -96,7 +147,15 @@ export const CLUES: Clue[] = [
     icon: '📖',
     chapterId: 'chapter_2',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_5',
+        mechanismName: '青铜密码',
+        purpose: '提供商周时期的历史背景知识',
+        exhibitionId: 'exhibition_7'
+      }
+    ]
   },
   {
     id: 'clue_11',
@@ -105,7 +164,15 @@ export const CLUES: Clue[] = [
     icon: '📜',
     chapterId: 'chapter_3',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_4',
+        mechanismName: '青铜鼎修复',
+        purpose: '修复材料第1步：打磨氧化层',
+        exhibitionId: 'exhibition_6'
+      }
+    ]
   },
   {
     id: 'clue_12',
@@ -114,7 +181,15 @@ export const CLUES: Clue[] = [
     icon: '🧪',
     chapterId: 'chapter_3',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_4',
+        mechanismName: '青铜鼎修复',
+        purpose: '修复材料第2步：粘结断裂部件',
+        exhibitionId: 'exhibition_6'
+      }
+    ]
   },
   {
     id: 'clue_13',
@@ -123,7 +198,15 @@ export const CLUES: Clue[] = [
     icon: '✨',
     chapterId: 'chapter_3',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_4',
+        mechanismName: '青铜鼎修复',
+        purpose: '修复材料第3步：填补缺失部分',
+        exhibitionId: 'exhibition_6'
+      }
+    ]
   },
   {
     id: 'clue_14',
@@ -132,7 +215,15 @@ export const CLUES: Clue[] = [
     icon: '🧻',
     chapterId: 'chapter_3',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_4',
+        mechanismName: '青铜鼎修复',
+        purpose: '修复材料第4步：抛光恢复光泽',
+        exhibitionId: 'exhibition_6'
+      }
+    ]
   },
   {
     id: 'clue_15',
@@ -141,7 +232,15 @@ export const CLUES: Clue[] = [
     icon: '🔧',
     chapterId: 'chapter_3',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_4',
+        mechanismName: '青铜鼎修复',
+        purpose: '修复材料第5步：处理细小碎片',
+        exhibitionId: 'exhibition_6'
+      }
+    ]
   },
   {
     id: 'clue_h1',
@@ -152,7 +251,23 @@ export const CLUES: Clue[] = [
     isMemory: false,
     collected: false,
     hallOrigin: 'history',
-    isShared: false
+    isShared: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_linked_1',
+        mechanismName: '联动机关·青铜琥珀锁',
+        purpose: '提供青铜铸造年份线索',
+        exhibitionId: 'exhibition_history_1',
+        hallType: 'history'
+      },
+      {
+        mechanismId: 'mech_linked_final',
+        mechanismName: '联动机关·千年永恒锁',
+        purpose: '历史馆关键线索',
+        exhibitionId: 'exhibition_history_3',
+        hallType: 'history'
+      }
+    ]
   },
   {
     id: 'clue_h2',
@@ -165,7 +280,23 @@ export const CLUES: Clue[] = [
     collected: false,
     hallOrigin: 'history',
     isShared: true,
-    linkedClueId: 'clue_a2'
+    linkedClueId: 'clue_a2',
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_linked_1',
+        mechanismName: '联动机关·青铜琥珀锁',
+        purpose: '提供"永恒"家族传承线索',
+        exhibitionId: 'exhibition_history_1',
+        hallType: 'history'
+      },
+      {
+        mechanismId: 'mech_linked_final',
+        mechanismName: '联动机关·千年永恒锁',
+        purpose: '解锁共享线索clue_shared_1',
+        exhibitionId: 'exhibition_history_3',
+        hallType: 'history'
+      }
+    ]
   },
   {
     id: 'clue_h3',
@@ -178,7 +309,23 @@ export const CLUES: Clue[] = [
     collected: false,
     hallOrigin: 'history',
     isShared: true,
-    linkedClueId: 'clue_a3'
+    linkedClueId: 'clue_a3',
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_linked_2',
+        mechanismName: '联动机关·音律调色锁',
+        purpose: '提供礼乐节奏线索',
+        exhibitionId: 'exhibition_history_2',
+        hallType: 'history'
+      },
+      {
+        mechanismId: 'mech_linked_final',
+        mechanismName: '联动机关·千年永恒锁',
+        purpose: '解锁共享线索clue_shared_2',
+        exhibitionId: 'exhibition_history_3',
+        hallType: 'history'
+      }
+    ]
   },
   {
     id: 'clue_a1',
@@ -189,7 +336,23 @@ export const CLUES: Clue[] = [
     isMemory: false,
     collected: false,
     hallOrigin: 'art',
-    isShared: false
+    isShared: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_linked_1',
+        mechanismName: '联动机关·青铜琥珀锁',
+        purpose: '提供琥珀诞生年份线索',
+        exhibitionId: 'exhibition_art_1',
+        hallType: 'art'
+      },
+      {
+        mechanismId: 'mech_linked_final',
+        mechanismName: '联动机关·千年永恒锁',
+        purpose: '艺术馆关键线索',
+        exhibitionId: 'exhibition_art_3',
+        hallType: 'art'
+      }
+    ]
   },
   {
     id: 'clue_a2',
@@ -202,7 +365,23 @@ export const CLUES: Clue[] = [
     collected: false,
     hallOrigin: 'art',
     isShared: true,
-    linkedClueId: 'clue_h2'
+    linkedClueId: 'clue_h2',
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_linked_1',
+        mechanismName: '联动机关·青铜琥珀锁',
+        purpose: '提供艺术家家族传承线索',
+        exhibitionId: 'exhibition_art_1',
+        hallType: 'art'
+      },
+      {
+        mechanismId: 'mech_linked_final',
+        mechanismName: '联动机关·千年永恒锁',
+        purpose: '解锁共享线索clue_shared_1',
+        exhibitionId: 'exhibition_art_3',
+        hallType: 'art'
+      }
+    ]
   },
   {
     id: 'clue_a3',
@@ -215,7 +394,23 @@ export const CLUES: Clue[] = [
     collected: false,
     hallOrigin: 'art',
     isShared: true,
-    linkedClueId: 'clue_h3'
+    linkedClueId: 'clue_h3',
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_linked_2',
+        mechanismName: '联动机关·音律调色锁',
+        purpose: '提供画作色调线索',
+        exhibitionId: 'exhibition_art_2',
+        hallType: 'art'
+      },
+      {
+        mechanismId: 'mech_linked_final',
+        mechanismName: '联动机关·千年永恒锁',
+        purpose: '解锁共享线索clue_shared_2',
+        exhibitionId: 'exhibition_art_3',
+        hallType: 'art'
+      }
+    ]
   },
   {
     id: 'clue_shared_1',
@@ -229,7 +424,23 @@ export const CLUES: Clue[] = [
     collected: false,
     hallOrigin: 'history',
     isShared: true,
-    requiredClueFromOtherHall: 'clue_a2'
+    requiredClueFromOtherHall: 'clue_a2',
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_linked_2',
+        mechanismName: '联动机关·音律调色锁',
+        purpose: '合璧线索：揭示家族传承秘密',
+        exhibitionId: 'exhibition_history_2',
+        hallType: 'history'
+      },
+      {
+        mechanismId: 'mech_linked_final',
+        mechanismName: '联动机关·千年永恒锁',
+        purpose: '最终密码线索：永恒',
+        exhibitionId: 'exhibition_history_3',
+        hallType: 'history'
+      }
+    ]
   },
   {
     id: 'clue_shared_2',
@@ -243,7 +454,23 @@ export const CLUES: Clue[] = [
     collected: false,
     hallOrigin: 'art',
     isShared: true,
-    requiredClueFromOtherHall: 'clue_h3'
+    requiredClueFromOtherHall: 'clue_h3',
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_linked_2',
+        mechanismName: '联动机关·音律调色锁',
+        purpose: '交融线索：揭示节奏与色调的呼应',
+        exhibitionId: 'exhibition_art_2',
+        hallType: 'art'
+      },
+      {
+        mechanismId: 'mech_linked_final',
+        mechanismName: '联动机关·千年永恒锁',
+        purpose: '提供最终密码答案：永恒',
+        exhibitionId: 'exhibition_art_3',
+        hallType: 'art'
+      }
+    ]
   },
   ...AUTHENTICITY_CLUES,
   {
@@ -254,7 +481,21 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_6',
     isMemory: true,
     memoryOrder: 1,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_entrance',
+        mechanismName: '记忆回廊之门',
+        purpose: '提供密码线索：记忆',
+        exhibitionId: 'exhibition_corridor_entrance'
+      },
+      {
+        mechanismId: 'mech_cor_memory_final',
+        mechanismName: '完整记忆拼图',
+        purpose: '记忆排序第1位：回廊钥匙的记忆',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_cor_2',
@@ -264,7 +505,21 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_6',
     isMemory: true,
     memoryOrder: 2,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_memory_1',
+        mechanismName: '童年记忆排序',
+        purpose: '童年记忆排序第1位：向日葵花田',
+        exhibitionId: 'exhibition_corridor_childhood'
+      },
+      {
+        mechanismId: 'mech_cor_memory_final',
+        mechanismName: '完整记忆拼图',
+        purpose: '记忆排序第2位：向日葵花语的记忆',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_cor_3',
@@ -274,7 +529,21 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_6',
     isMemory: true,
     memoryOrder: 3,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_memory_1',
+        mechanismName: '童年记忆排序',
+        purpose: '童年记忆排序第2位：蝴蝶标本',
+        exhibitionId: 'exhibition_corridor_childhood'
+      },
+      {
+        mechanismId: 'mech_cor_memory_final',
+        mechanismName: '完整记忆拼图',
+        purpose: '记忆排序第3位：蝴蝶标本的记忆',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_cor_4',
@@ -284,7 +553,21 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_6',
     isMemory: true,
     memoryOrder: 4,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_branch_1',
+        mechanismName: '青春的抉择',
+        purpose: '选择"重点大学"的依据',
+        exhibitionId: 'exhibition_corridor_youth'
+      },
+      {
+        mechanismId: 'mech_cor_memory_final',
+        mechanismName: '完整记忆拼图',
+        purpose: '记忆排序第4位：大学录取通知书的记忆',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_cor_5',
@@ -294,7 +577,21 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_6',
     isMemory: true,
     memoryOrder: 5,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_branch_1',
+        mechanismName: '青春的抉择',
+        purpose: '选择"艺术梦想"的依据',
+        exhibitionId: 'exhibition_corridor_youth'
+      },
+      {
+        mechanismId: 'mech_cor_memory_final',
+        mechanismName: '完整记忆拼图',
+        purpose: '记忆排序第5位：艺术学院邀请函的记忆',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_cor_6',
@@ -304,7 +601,21 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_6',
     isMemory: true,
     memoryOrder: 6,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_branch_final',
+        mechanismName: '最终的抉择',
+        purpose: '坚定守护记忆的决心',
+        exhibitionId: 'exhibition_corridor_present'
+      },
+      {
+        mechanismId: 'mech_cor_memory_final',
+        mechanismName: '完整记忆拼图',
+        purpose: '记忆排序第6位：爷爷遗言的记忆',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_cor_7',
@@ -314,7 +625,21 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_6',
     isMemory: true,
     memoryOrder: 7,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_branch_final',
+        mechanismName: '最终的抉择',
+        purpose: '获得家人支持的力量',
+        exhibitionId: 'exhibition_corridor_present'
+      },
+      {
+        mechanismId: 'mech_cor_memory_final',
+        mechanismName: '完整记忆拼图',
+        purpose: '记忆排序第7位：母亲家书的记忆',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_cor_8',
@@ -324,7 +649,27 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_6',
     isMemory: true,
     memoryOrder: 8,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_branch_final',
+        mechanismName: '最终的抉择',
+        purpose: '理解"永恒"的真正含义',
+        exhibitionId: 'exhibition_corridor_present'
+      },
+      {
+        mechanismId: 'mech_cor_memory_final',
+        mechanismName: '完整记忆拼图',
+        purpose: '记忆排序第8位：琥珀日记的记忆',
+        exhibitionId: 'exhibition_corridor_present'
+      },
+      {
+        mechanismId: 'mech_cor_ending',
+        mechanismName: '结局之门',
+        purpose: '提供最终密码线索：永恒',
+        exhibitionId: 'exhibition_corridor_ending'
+      }
+    ]
   },
   {
     id: 'clue_cor_choice_1',
@@ -336,7 +681,15 @@ export const CLUES: Clue[] = [
     collected: false,
     branchChoiceId: 'branch_cor_1',
     isEndingClue: true,
-    endingId: 'ending_true'
+    endingId: 'ending_true',
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_branch_final',
+        mechanismName: '最终的抉择',
+        purpose: '达成真结局的关键线索',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_cor_choice_2',
@@ -348,7 +701,15 @@ export const CLUES: Clue[] = [
     collected: false,
     branchChoiceId: 'branch_cor_1',
     isEndingClue: true,
-    endingId: 'ending_good'
+    endingId: 'ending_good',
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_branch_final',
+        mechanismName: '最终的抉择',
+        purpose: '达成好结局的关键线索',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_cor_choice_3',
@@ -360,7 +721,15 @@ export const CLUES: Clue[] = [
     collected: false,
     branchChoiceId: 'branch_cor_1',
     isEndingClue: true,
-    endingId: 'ending_neutral'
+    endingId: 'ending_neutral',
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_cor_branch_final',
+        mechanismName: '最终的抉择',
+        purpose: '达成普通结局的关键线索',
+        exhibitionId: 'exhibition_corridor_present'
+      }
+    ]
   },
   {
     id: 'clue_blackout_1',
@@ -369,7 +738,15 @@ export const CLUES: Clue[] = [
     icon: '🔑',
     chapterId: 'chapter_1',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_blackout_emergency',
+        mechanismName: '紧急开关面板',
+        purpose: '紧急出口钥匙',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   },
   {
     id: 'clue_blackout_2',
@@ -379,7 +756,15 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_1',
     isMemory: true,
     memoryOrder: 4,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_blackout_generator',
+        mechanismName: '发电机控制面板',
+        purpose: '提供应急照明系统操作指南',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   },
   {
     id: 'clue_blackout_3',
@@ -389,7 +774,15 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_1',
     isMemory: true,
     memoryOrder: 5,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_blackout_final',
+        mechanismName: '主电源恢复开关',
+        purpose: '提供情感支持和勇气',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   },
   {
     id: 'clue_blackout_emergency',
@@ -398,7 +791,15 @@ export const CLUES: Clue[] = [
     icon: '📜',
     chapterId: 'chapter_1',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_blackout_generator',
+        mechanismName: '发电机控制面板',
+        purpose: '提供电力系统布局线索',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   },
   {
     id: 'clue_blackout_final',
@@ -408,6 +809,14 @@ export const CLUES: Clue[] = [
     chapterId: 'chapter_1',
     isMemory: true,
     memoryOrder: 6,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_blackout_final',
+        mechanismName: '主电源恢复开关',
+        purpose: '提供密码线索：琥珀',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   }
 ];

@@ -267,7 +267,15 @@ export const POWER_OUTAGE_CLUES = [
     icon: '🔑',
     chapterId: 'chapter_1',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_timed_generator',
+        mechanismName: '发电机控制面板',
+        purpose: '用于解锁发电机控制面板，启动应急电力系统',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   },
   {
     id: 'clue_dark_2',
@@ -277,7 +285,15 @@ export const POWER_OUTAGE_CLUES = [
     chapterId: 'chapter_1',
     isMemory: true,
     memoryOrder: 4,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_timed_emergency',
+        mechanismName: '应急电源密码锁',
+        purpose: '提供应急照明系统的操作指导，帮助理解密码提示',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   },
   {
     id: 'clue_dark_3',
@@ -287,7 +303,15 @@ export const POWER_OUTAGE_CLUES = [
     chapterId: 'chapter_1',
     isMemory: true,
     memoryOrder: 5,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_timed_final',
+        mechanismName: '主电源恢复开关',
+        purpose: '唤起珍贵记忆，提供情感支持和精神力量',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   },
   {
     id: 'clue_dark_4',
@@ -296,7 +320,21 @@ export const POWER_OUTAGE_CLUES = [
     icon: '📜',
     chapterId: 'chapter_1',
     isMemory: false,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_timed_generator',
+        mechanismName: '发电机控制面板',
+        purpose: '提供电力系统布局图，帮助找到发电机位置和操作方法',
+        exhibitionId: 'exhibition_1'
+      },
+      {
+        mechanismId: 'mech_timed_final',
+        mechanismName: '主电源恢复开关',
+        purpose: '说明主电源恢复的操作步骤和注意事项',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   },
   {
     id: 'clue_dark_5',
@@ -306,7 +344,15 @@ export const POWER_OUTAGE_CLUES = [
     chapterId: 'chapter_1',
     isMemory: true,
     memoryOrder: 6,
-    collected: false
+    collected: false,
+    mechanismPurpose: [
+      {
+        mechanismId: 'mech_timed_final',
+        mechanismName: '主电源恢复开关',
+        purpose: '提供最终的精神指引，确认博物馆传承的意义',
+        exhibitionId: 'exhibition_1'
+      }
+    ]
   }
 ];
 

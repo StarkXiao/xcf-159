@@ -29,9 +29,10 @@ export class Animator {
     duration: number,
     onUpdate: (progress: number) => void,
     onComplete?: () => void,
-    easing: (t: number) => number = Animator.easeOutCubic
+    easing: (t: number) => number = Animator.easeOutCubic,
+    loop: boolean = false
   ): () => void {
-    const startTime = performance.now();
+    let startTime = performance.now();
     let animationId: number;
     let cancelled = false;
 
@@ -39,12 +40,19 @@ export class Animator {
       if (cancelled) return;
 
       const elapsed = performance.now() - startTime;
-      const rawProgress = Math.min(elapsed / duration, 1);
+      let rawProgress = elapsed / duration;
+      
+      if (loop) {
+        rawProgress = rawProgress % 1;
+      } else {
+        rawProgress = Math.min(rawProgress, 1);
+      }
+      
       const easedProgress = easing(rawProgress);
 
       onUpdate(easedProgress);
 
-      if (rawProgress < 1) {
+      if (loop || rawProgress < 1) {
         animationId = requestAnimationFrame(animateFrame);
       } else {
         onComplete?.();

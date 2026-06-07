@@ -14,6 +14,15 @@ export interface Clue {
   branchChoiceId?: string;
   isEndingClue?: boolean;
   endingId?: string;
+  mechanismPurpose?: MechanismPurpose[];
+}
+
+export interface MechanismPurpose {
+  mechanismId: string;
+  mechanismName: string;
+  purpose: string;
+  exhibitionId?: string;
+  hallType?: HallType;
 }
 
 export interface Hotspot {

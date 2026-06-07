@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -3386,6 +3386,213 @@ class Store {
       currentEnding: this.getCurrentEnding(),
       memoryComplete: this.state.memoryCorridor.isMemoryComplete
     };
+  }
+
+  getCluesByExhibition(exhibitionId: string): Clue[] {
+    const exhibition = this.exhibitions.find(e => e.id === exhibitionId);
+    if (!exhibition) return [];
+    
+    const clueIds = exhibition.hotspots
+      .filter(h => h.type === 'clue')
+      .map(h => h.targetId);
+    
+    return this.clues.filter(c => clueIds.includes(c.id)).map(c => ({ ...c }));
+  }
+
+  getCollectedCluesByExhibition(exhibitionId: string): Clue[] {
+    const clues = this.getCluesByExhibition(exhibitionId);
+    return clues.filter(c => c.collected);
+  }
+
+  getCluesByMechanism(mechanismId: string): Clue[] {
+    return this.clues.filter(c => 
+      c.mechanismPurpose?.some(p => p.mechanismId === mechanismId)
+    ).map(c => ({ ...c }));
+  }
+
+  getCollectedCluesByMechanism(mechanismId: string): Clue[] {
+    const clues = this.getCluesByMechanism(mechanismId);
+    return clues.filter(c => c.collected);
+  }
+
+  getAvailableCluesForMechanism(mechanismId: string): Clue[] {
+    const mech = this.mechanisms.find(m => m.id === mechanismId);
+    if (!mech || mech.solved) return [];
+
+    const requiredClueIds: string[] = [];
+    
+    if (mech.requiredHistoryClues) {
+      requiredClueIds.push(...mech.requiredHistoryClues);
+    }
+    if (mech.requiredArtClues) {
+      requiredClueIds.push(...mech.requiredArtClues);
+    }
+    if (mech.memoryCorridorPhase?.fragmentIds) {
+      requiredClueIds.push(...mech.memoryCorridorPhase.fragmentIds);
+    }
+    if (mech.type === 'restoration' && mech.relicId) {
+      const relic = this.relics.find(r => r.id === mech.relicId);
+      if (relic) {
+        const materialIds = relic.steps.map(s => s.materialId);
+        requiredClueIds.push(...materialIds);
+      }
+    }
+
+    const purposeClueIds = this.clues
+      .filter(c => c.mechanismPurpose?.some(p => p.mechanismId === mechanismId))
+      .map(c => c.id);
+    
+    requiredClueIds.push(...purposeClueIds);
+
+    const uniqueIds = [...new Set(requiredClueIds)];
+    return this.clues.filter(c => 
+      uniqueIds.includes(c.id) && c.collected
+    ).map(c => ({ ...c }));
+  }
+
+  getCluesFiltered(filters: {
+    chapterId?: string;
+    hallType?: HallType;
+    exhibitionId?: string;
+    mechanismId?: string;
+    onlyCollected?: boolean;
+    onlyAvailable?: boolean;
+  }): Clue[] {
+    let clues = this.clues.map(c => ({ ...c }));
+
+    if (filters.chapterId) {
+      clues = clues.filter(c => c.chapterId === filters.chapterId);
+    }
+
+    if (filters.hallType) {
+      clues = clues.filter(c => c.hallOrigin === filters.hallType);
+    }
+
+    if (filters.exhibitionId) {
+      const exhibition = this.exhibitions.find(e => e.id === filters.exhibitionId);
+      if (exhibition) {
+        const clueIds = exhibition.hotspots
+          .filter(h => h.type === 'clue')
+          .map(h => h.targetId);
+        clues = clues.filter(c => clueIds.includes(c.id));
+      }
+    }
+
+    if (filters.mechanismId) {
+      clues = clues.filter(c => 
+        c.mechanismPurpose?.some(p => p.mechanismId === filters.mechanismId)
+      );
+    }
+
+    if (filters.onlyCollected) {
+      clues = clues.filter(c => c.collected);
+    }
+
+    if (filters.onlyAvailable && filters.mechanismId) {
+      const availableClueIds = this.getAvailableCluesForMechanism(filters.mechanismId).map(c => c.id);
+      clues = clues.filter(c => availableClueIds.includes(c.id));
+    }
+
+    return clues;
+  }
+
+  getMechanismsByClue(clueId: string): Mechanism[] {
+    const clue = this.clues.find(c => c.id === clueId);
+    if (!clue?.mechanismPurpose) return [];
+
+    const mechanismIds = clue.mechanismPurpose.map(p => p.mechanismId);
+    return this.mechanisms.filter(m => 
+      mechanismIds.includes(m.id)
+    ).map(m => ({ ...m }));
+  }
+
+  getCurrentExhibitionMechanisms(): Mechanism[] {
+    const currentExhibition = this.getCurrentExhibition();
+    if (!currentExhibition) return [];
+
+    const mechIds = currentExhibition.hotspots
+      .filter(h => h.type === 'mechanism')
+      .map(h => h.targetId);
+
+    return this.mechanisms.filter(m => 
+      mechIds.includes(m.id) && !m.solved
+    ).map(m => ({ ...m }));
+  }
+
+  getAvailableCluesForCurrentExhibition(): Clue[] {
+    const mechanisms = this.getCurrentExhibitionMechanisms();
+    const availableClueIds: string[] = [];
+
+    for (const mech of mechanisms) {
+      const clues = this.getAvailableCluesForMechanism(mech.id);
+      availableClueIds.push(...clues.map(c => c.id));
+    }
+
+    const uniqueIds = [...new Set(availableClueIds)];
+    return this.clues.filter(c => 
+      uniqueIds.includes(c.id) && c.collected
+    ).map(c => ({ ...c }));
+  }
+
+  isClueUsefulForMechanism(clueId: string, mechanismId: string): boolean {
+    const clue = this.clues.find(c => c.id === clueId);
+    if (!clue?.collected) return false;
+    return clue.mechanismPurpose?.some(p => p.mechanismId === mechanismId) || false;
+  }
+
+  isClueUsefulInCurrentExhibition(clueId: string): boolean {
+    const mechanisms = this.getCurrentExhibitionMechanisms();
+    return mechanisms.some(m => this.isClueUsefulForMechanism(clueId, m.id));
+  }
+
+  getClueMechanismPurpose(clueId: string): MechanismPurpose[] {
+    const clue = this.clues.find(c => c.id === clueId);
+    return clue?.mechanismPurpose?.map(p => ({ ...p })) || [];
+  }
+
+  getCluePurposeDisplay(clueId: string): string {
+    const purposes = this.getClueMechanismPurpose(clueId);
+    if (purposes.length === 0) return '暂无明确用途';
+    return purposes.map(p => `${p.mechanismName}：${p.purpose}`).join('\n');
+  }
+
+  getDistinctMechanismPurposes(): { id: string; name: string }[] {
+    const purposeSet = new Map<string, string>();
+    
+    this.clues.forEach(clue => {
+      clue.mechanismPurpose?.forEach(p => {
+        if (!purposeSet.has(p.mechanismId)) {
+          purposeSet.set(p.mechanismId, p.mechanismName);
+        }
+      });
+    });
+
+    return Array.from(purposeSet.entries()).map(([id, name]) => ({ id, name }));
+  }
+
+  getDistinctExhibitionsForCollectedClues(): { id: string; name: string; chapterId: string }[] {
+    const exhibitionSet = new Map<string, { name: string; chapterId: string }>();
+    
+    this.clues.filter(c => c.collected).forEach(clue => {
+      clue.mechanismPurpose?.forEach(p => {
+        if (p.exhibitionId && !exhibitionSet.has(p.exhibitionId)) {
+          const exhibition = this.exhibitions.find(e => e.id === p.exhibitionId);
+          if (exhibition) {
+            const chapter = this.chapters.find(ch => ch.exhibitions.includes(p.exhibitionId!));
+            exhibitionSet.set(p.exhibitionId, { 
+              name: exhibition.name, 
+              chapterId: chapter?.id || '' 
+            });
+          }
+        }
+      });
+    });
+
+    return Array.from(exhibitionSet.entries()).map(([id, data]) => ({ 
+      id, 
+      name: data.name, 
+      chapterId: data.chapterId 
+    }));
   }
 }
 
