@@ -1068,10 +1068,10 @@ export class ChapterModule {
     eventBus.emit('progress:chapter-complete', { chapterId: data.chapterId });
     this.showChapterComplete(data.chapterId, () => {
       this.showExhibitionUnlockAnimation(data.chapterId, () => {
-        store.clearNewlyUnlockedExhibitions();
         this.showArchivePrompt(data.chapterId, () => {
           this.showChapterKeyPointReview(data.chapterId, () => {
             this.showNextStepGuide(data.chapterId, () => {
+              store.clearNewlyUnlockedExhibitions();
               this.updateProgress();
             });
           });
