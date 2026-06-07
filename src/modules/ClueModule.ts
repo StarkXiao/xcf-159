@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { Clue, HallType } from '../game/types';
+import { Clue } from '../game/types';
 import { store } from '../game/Store';
 import { eventBus } from '../game/EventBus';
 import { GAME_CONFIG } from '../game/config';
@@ -8,7 +8,7 @@ import { audioModule } from './AudioModule';
 
 interface FilterState {
   chapterId: string;
-  hallType: HallType | 'all';
+  exhibitionId: string;
   mechanismId: string;
   onlyAvailable: boolean;
 }
@@ -24,7 +24,7 @@ export class ClueModule {
   
   private filterState: FilterState = {
     chapterId: 'all',
-    hallType: 'all',
+    exhibitionId: 'all',
     mechanismId: 'all',
     onlyAvailable: false
   };
@@ -129,11 +129,7 @@ export class ClueModule {
     container.y = 55;
 
     const chapters = store.getChapters();
-    const halls: { id: HallType | 'all'; name: string }[] = [
-      { id: 'all', name: '全部展厅' },
-      { id: 'history', name: '历史馆' },
-      { id: 'art', name: '艺术馆' }
-    ];
+    const exhibitions = store.getDistinctExhibitionsForCollectedClues();
     const mechanisms = store.getDistinctMechanismPurposes();
 
     const chapterFilter = this.createDropdown(
@@ -148,17 +144,17 @@ export class ClueModule {
     chapterFilter.x = 30;
     container.addChild(chapterFilter);
 
-    const hallFilter = this.createDropdown(
+    const exhibitionFilter = this.createDropdown(
       '展厅',
-      halls,
-      this.filterState.hallType,
+      [{ id: 'all', name: '全部展厅' }, ...exhibitions.map(e => ({ id: e.id, name: e.name }))],
+      this.filterState.exhibitionId,
       (value) => {
-        this.filterState.hallType = value as HallType | 'all';
+        this.filterState.exhibitionId = value;
         this.renderInventory();
       }
     );
-    hallFilter.x = 200;
-    container.addChild(hallFilter);
+    exhibitionFilter.x = 200;
+    container.addChild(exhibitionFilter);
 
     const mechanismFilter = this.createDropdown(
       '机关用途',
@@ -339,8 +335,8 @@ export class ClueModule {
     if (this.filterState.chapterId !== 'all') {
       filters.chapterId = this.filterState.chapterId;
     }
-    if (this.filterState.hallType !== 'all') {
-      filters.hallType = this.filterState.hallType;
+    if (this.filterState.exhibitionId !== 'all') {
+      filters.exhibitionId = this.filterState.exhibitionId;
     }
     if (this.filterState.mechanismId !== 'all') {
       filters.mechanismId = this.filterState.mechanismId;
@@ -414,7 +410,15 @@ export class ClueModule {
       const x = startX + col * (itemSize + gap);
       const y = startY + row * (itemSize + gap);
 
-      const isAvailable = store.isClueUsefulInCurrentExhibition(clue.id);
+      let isAvailable = false;
+      if (this.filterState.mechanismId !== 'all') {
+        isAvailable = store.isClueUsefulForMechanism(clue.id, this.filterState.mechanismId);
+      } else if (this.filterState.exhibitionId !== 'all') {
+        isAvailable = store.isClueUsefulForExhibition(clue.id, this.filterState.exhibitionId);
+      } else {
+        isAvailable = store.isClueUsefulInCurrentExhibition(clue.id);
+      }
+
       const item = this.createInventoryItem(clue, x, y, isAvailable);
       this.inventoryPanel.addChild(item);
       this.inventoryItems.push(item);

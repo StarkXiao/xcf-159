@@ -3450,6 +3450,34 @@ class Store {
     ).map(c => ({ ...c }));
   }
 
+  getAvailableCluesForExhibition(exhibitionId: string): Clue[] {
+    const exhibition = this.exhibitions.find(e => e.id === exhibitionId);
+    if (!exhibition) return [];
+
+    const mechIds = exhibition.hotspots
+      .filter(h => h.type === 'mechanism')
+      .map(h => h.targetId);
+    
+    const availableClueIds: string[] = [];
+    for (const mechId of mechIds) {
+      const mech = this.mechanisms.find(m => m.id === mechId);
+      if (mech && !mech.solved) {
+        const clues = this.getAvailableCluesForMechanism(mechId);
+        availableClueIds.push(...clues.map(c => c.id));
+      }
+    }
+
+    const uniqueIds = [...new Set(availableClueIds)];
+    return this.clues.filter(c => 
+      uniqueIds.includes(c.id) && c.collected
+    ).map(c => ({ ...c }));
+  }
+
+  isClueUsefulForExhibition(clueId: string, exhibitionId: string): boolean {
+    const availableClues = this.getAvailableCluesForExhibition(exhibitionId);
+    return availableClues.some(c => c.id === clueId);
+  }
+
   getCluesFiltered(filters: {
     chapterId?: string;
     hallType?: HallType;
@@ -3488,9 +3516,22 @@ class Store {
       clues = clues.filter(c => c.collected);
     }
 
-    if (filters.onlyAvailable && filters.mechanismId) {
-      const availableClueIds = this.getAvailableCluesForMechanism(filters.mechanismId).map(c => c.id);
-      clues = clues.filter(c => availableClueIds.includes(c.id));
+    if (filters.onlyAvailable) {
+      let availableClueIds: string[] = [];
+      
+      if (filters.mechanismId) {
+        availableClueIds = this.getAvailableCluesForMechanism(filters.mechanismId).map(c => c.id);
+      } else if (filters.exhibitionId) {
+        availableClueIds = this.getAvailableCluesForExhibition(filters.exhibitionId).map(c => c.id);
+      } else {
+        availableClueIds = this.getAvailableCluesForCurrentExhibition().map(c => c.id);
+      }
+      
+      if (availableClueIds.length > 0) {
+        clues = clues.filter(c => availableClueIds.includes(c.id));
+      } else {
+        clues = [];
+      }
     }
 
     return clues;
