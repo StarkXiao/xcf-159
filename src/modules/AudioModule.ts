@@ -181,7 +181,9 @@ export class AudioModule {
                       name === 'bgm_memory_puzzle' ? 247 :
                       name === 'bgm_memory_reconstruct' ? 262 :
                       name === 'bgm_restoration_complete' ? 349 :
+                      name === 'bgm_chapter_intro' ? 294 :
                       name === 'bgm_chapter_complete' ? 330 :
+                      name === 'bgm_ending_reveal' ? 262 :
                       name === 'bgm_dual_hall_complete' ? 370 :
                       name === 'bgm_truth_revealed' ? 392 :
                       name === 'bgm_memory_complete' ? 415 :
@@ -236,7 +238,8 @@ export class AudioModule {
                       name === 'sfx_magnify' ? 880 :
                       name === 'sfx_corridor_open' ? 587 :
                       name === 'sfx_link_unlock' ? 494 :
-                      name === 'sfx_choice_made' ? 523 : 440;
+                      name === 'sfx_choice_made' ? 523 :
+                      name === 'sfx_chapter_complete' ? 659 : 440;
 
     const duration = name === 'bgm_night' ? 12 :
                      name === 'bgm_power_outage' ? 15 :
@@ -266,7 +269,9 @@ export class AudioModule {
                      name === 'bgm_memory_puzzle' ? 10 :
                      name === 'bgm_memory_reconstruct' ? 12 :
                      name === 'bgm_restoration_complete' ? 12 :
+                     name === 'bgm_chapter_intro' ? 10 :
                      name === 'bgm_chapter_complete' ? 12 :
+                     name === 'bgm_ending_reveal' ? 20 :
                      name === 'bgm_dual_hall_complete' ? 15 :
                      name === 'bgm_truth_revealed' ? 15 :
                      name === 'bgm_memory_complete' ? 15 :
@@ -317,6 +322,7 @@ export class AudioModule {
                      name === 'sfx_corridor_open' ? 1.5 :
                      name === 'sfx_link_unlock' ? 0.8 :
                      name === 'sfx_choice_made' ? 1.0 :
+                     name === 'sfx_chapter_complete' ? 1.5 :
                      loop ? 8 : 0.3;
 
     return new Howl({
@@ -596,82 +602,135 @@ export class AudioModule {
     return this.voiceVolume;
   }
 
-  private setupSceneEventListeners(): void {
-    eventBus.on('exhibition:enter', (data: { exhibitionId: string }) => {
-      this.handleExhibitionEnter(data.exhibitionId);
-    });
+  private onExhibitionEnter = (data: { exhibitionId: string }) => {
+    this.handleExhibitionEnter(data.exhibitionId);
+  };
 
-    eventBus.on('chapter:enter', (data: { chapterId: string }) => {
-      this.handleStoryNode(data.chapterId, 'chapter_start');
-    });
+  private onChapterEnter = (data: { chapterId: string }) => {
+    this.handleStoryNode(data.chapterId, 'chapter_start');
+  };
 
-    eventBus.on('chapter:complete', (data: { chapterId: string }) => {
-      this.handleStoryNode(data.chapterId, 'chapter_end');
-    });
+  private onChapterComplete = (data: { chapterId: string }) => {
+    this.handleStoryNode(data.chapterId, 'chapter_end');
+  };
 
-    eventBus.on('mechanism:open', (data: { mechanismId: string }) => {
+  private onMechanismOpen = (data: { mechanismId: string }) => {
+    const mech = store.getMechanismById(data.mechanismId);
+    if (mech?.type === 'memory_sort') {
+      this.handlePuzzlePhase(data.mechanismId, 'memory_reconstruction');
+    } else if (mech?.type === 'branch_choice') {
+      this.handlePuzzlePhase(data.mechanismId, 'branch_choice');
+    } else {
       this.handlePuzzlePhase(data.mechanismId, 'puzzle_active');
-    });
+    }
+  };
 
-    eventBus.on('mechanism:solve', (data: { mechanismId: string }) => {
-      this.handlePuzzlePhase(data.mechanismId, 'puzzle_solved');
-    });
+  private onMechanismSolve = (data: { mechanismId: string }) => {
+    this.handlePuzzlePhase(data.mechanismId, 'puzzle_solved');
+  };
 
-    eventBus.on('memory:start', (data: { chapterId: string }) => {
-      const chapter = store.getChapterById(data.chapterId);
-      if (chapter && chapter.memoryPhases) {
-        const firstPhaseExhibition = chapter.memoryPhases[0]?.exhibitionId;
-        if (firstPhaseExhibition) {
-          const mech = store.getMechanisms().find(m => 
-            store.getExhibitionById(firstPhaseExhibition)?.hotspots.some(h => 
-              h.type === 'mechanism' && h.targetId === m.id && m.type === 'memory_sort'
-            )
-          );
-          if (mech) {
-            this.handlePuzzlePhase(mech.id, 'memory_reconstruction');
-          }
+  private onMemorySortOpen = (data: { mechanismId: string }) => {
+    this.handlePuzzlePhase(data.mechanismId, 'memory_reconstruction');
+  };
+
+  private onBranchChoiceOpen = (data: { mechanismId: string }) => {
+    this.handlePuzzlePhase(data.mechanismId, 'branch_choice');
+  };
+
+  private onRestorationOpen = (data: { mechanismId: string }) => {
+    this.handlePuzzlePhase(data.mechanismId, 'puzzle_active');
+  };
+
+  private onHotspotInvestigate = (data: { hotspotId: string }) => {
+    const exhibition = store.getExhibitions().find(e =>
+      e.hotspots.some(h => h.id === data.hotspotId)
+    );
+    if (exhibition) {
+      const mech = store.getMechanisms().find(m => 
+        exhibition.hotspots.some(h => 
+          h.type === 'mechanism' && h.targetId === m.id
+        )
+      );
+      if (mech) {
+        this.handlePuzzlePhase(mech.id, 'investigation');
+      }
+    }
+  };
+
+  private onMemoryStart = (data: { chapterId: string }) => {
+    const chapter = store.getChapterById(data.chapterId);
+    if (chapter && chapter.memoryPhases) {
+      const firstPhaseExhibition = chapter.memoryPhases[0]?.exhibitionId;
+      if (firstPhaseExhibition) {
+        const mech = store.getMechanisms().find(m => 
+          store.getExhibitionById(firstPhaseExhibition)?.hotspots.some(h => 
+            h.type === 'mechanism' && h.targetId === m.id && m.type === 'memory_sort'
+          )
+        );
+        if (mech) {
+          this.handlePuzzlePhase(mech.id, 'memory_reconstruction');
         }
       }
-    });
+    }
+  };
 
-    eventBus.on('memory:complete', (data: { chapterId: string; success: boolean }) => {
-      this.handleStoryNode(data.chapterId, 'memory_complete');
-    });
+  private onMemoryComplete = (data: { chapterId: string; success: boolean }) => {
+    this.handleStoryNode(data.chapterId, 'memory_complete');
+  };
 
-    eventBus.on('poweroutage:start', () => {
-      this.handlePowerOutage('warning');
-    });
+  private onPowerOutageStart = () => {
+    this.handlePowerOutage('warning');
+  };
 
-    eventBus.on('poweroutage:event-trigger', (data: { eventId: string; event: any }) => {
-      if (data.event.phase === 'outage') {
-        this.handlePowerOutage('outage');
-      } else if (data.event.phase === 'recovery') {
-        this.handlePowerOutage('recovery');
-      }
-    });
+  private onPowerOutageEvent = (data: { eventId: string; event: any }) => {
+    if (data.event.phase === 'outage') {
+      this.handlePowerOutage('outage');
+    } else if (data.event.phase === 'recovery') {
+      this.handlePowerOutage('recovery');
+    }
+  };
 
-    eventBus.on('poweroutage:end', () => {
-      this.handlePowerOutage('complete');
-    });
+  private onPowerOutageEnd = () => {
+    this.handlePowerOutage('complete');
+  };
 
-    eventBus.on('exhibition:mode-change', (data: { mode: string }) => {
-      this.handleNightModeChange(data.mode === 'night');
-    });
+  private onExhibitionModeChange = (data: { mode: string }) => {
+    this.handleNightModeChange(data.mode === 'night');
+  };
 
-    eventBus.on('game:reset', () => {
-      this.resetSceneAudio();
-    });
+  private onGameReset = () => {
+    this.resetSceneAudio();
+  };
+
+  private setupSceneEventListeners(): void {
+    eventBus.on('exhibition:enter', this.onExhibitionEnter);
+    eventBus.on('exhibition:change', this.onExhibitionEnter);
+    eventBus.on('chapter:enter', this.onChapterEnter);
+    eventBus.on('chapter:complete', this.onChapterComplete);
+    eventBus.on('progress:chapter-complete', this.onChapterComplete);
+    eventBus.on('mechanism:open', this.onMechanismOpen);
+    eventBus.on('mechanism:solve', this.onMechanismSolve);
+    eventBus.on('memorysort:open', this.onMemorySortOpen);
+    eventBus.on('branchchoice:open', this.onBranchChoiceOpen);
+    eventBus.on('restoration:open', this.onRestorationOpen);
+    eventBus.on('hotspot:investigate', this.onHotspotInvestigate);
+    eventBus.on('memory:start', this.onMemoryStart);
+    eventBus.on('memory:complete', this.onMemoryComplete);
+    eventBus.on('poweroutage:start', this.onPowerOutageStart);
+    eventBus.on('poweroutage:event-trigger', this.onPowerOutageEvent);
+    eventBus.on('poweroutage:end', this.onPowerOutageEnd);
+    eventBus.on('exhibition:mode-change', this.onExhibitionModeChange);
+    eventBus.on('game:reset', this.onGameReset);
 
     const currentExhibition = store.getCurrentExhibition();
     if (currentExhibition) {
       this.sceneState.currentExhibition = currentExhibition.id;
       this.sceneState.currentAtmosphere = EXHIBITION_AUDIO[currentExhibition.id]?.default.atmosphere || 'grand';
+      this.handleExhibitionEnter(currentExhibition.id);
     }
   }
 
   private handleExhibitionEnter(exhibitionId: string): void {
-    if (this.sceneState.currentExhibition === exhibitionId) return;
-
     this.sceneState.currentExhibition = exhibitionId;
     this.sceneState.currentPuzzlePhase = null;
     this.sceneState.activeMechanismId = null;
@@ -685,7 +744,7 @@ export class AudioModule {
 
     this.sceneState.currentAtmosphere = exhibitionConfig.default.atmosphere;
 
-    this.applyAudioLayerConfig(audioConfig);
+    this.applyAudioLayerConfig(audioConfig, false);
     eventBus.emit('sceneaudio:exhibition-changed', { exhibitionId, atmosphere: this.sceneState.currentAtmosphere });
   }
 
@@ -693,14 +752,65 @@ export class AudioModule {
     this.sceneState.currentStoryNode = nodeType;
 
     const chapterConfig = CHAPTER_AUDIO[chapterId];
-    const storyConfig = chapterConfig?.storyNodes[nodeType];
+    let storyConfig = chapterConfig?.storyNodes[nodeType];
+
+    if (!storyConfig) {
+      if (nodeType === 'chapter_start') {
+        storyConfig = {
+          nodeType: 'chapter_start',
+          audio: {
+            bgm: 'bgm_chapter_intro',
+            volume: { bgm: 0.45 },
+            fadeDuration: 1500
+          }
+        };
+      } else if (nodeType === 'chapter_end') {
+        storyConfig = {
+          nodeType: 'chapter_end',
+          audio: {
+            bgm: 'bgm_chapter_complete',
+            sfx: 'sfx_chapter_complete',
+            volume: { bgm: 0.5, sfx: 0.7 },
+            fadeDuration: 2000
+          }
+        };
+      } else if (nodeType === 'memory_complete') {
+        storyConfig = {
+          nodeType: 'memory_complete',
+          audio: {
+            bgm: 'bgm_memory_complete',
+            sfx: 'sfx_memory_complete',
+            volume: { bgm: 0.5, sfx: 0.7 },
+            fadeDuration: 1500
+          }
+        };
+      } else if (nodeType === 'key_moment') {
+        storyConfig = {
+          nodeType: 'key_moment',
+          audio: {
+            bgm: 'bgm_revelation',
+            volume: { bgm: 0.5 },
+            fadeDuration: 1000
+          }
+        };
+      } else if (nodeType === 'ending_reveal') {
+        storyConfig = {
+          nodeType: 'ending_reveal',
+          audio: {
+            bgm: 'bgm_ending_reveal',
+            volume: { bgm: 0.6 },
+            fadeDuration: 2500
+          }
+        };
+      }
+    }
 
     if (storyConfig) {
       this.applyAudioLayerConfig(storyConfig.audio, true);
       eventBus.emit('sceneaudio:story-node', { chapterId, nodeType });
     }
 
-    if (nodeType === 'chapter_end') {
+    if (nodeType === 'chapter_end' || nodeType === 'memory_complete') {
       setTimeout(() => {
         this.sceneState.currentStoryNode = null;
       }, storyConfig?.audio.fadeDuration || 2000);
@@ -712,7 +822,66 @@ export class AudioModule {
     this.sceneState.activeMechanismId = mechanismId;
 
     const mechanismConfig = MECHANISM_AUDIO[mechanismId];
-    const phaseConfig = mechanismConfig?.phases[phase];
+    let phaseConfig = mechanismConfig?.phases[phase];
+
+    if (!phaseConfig && mechanismConfig) {
+      const phasePriority: PuzzlePhase[] = [
+        phase,
+        'puzzle_active',
+        'memory_reconstruction',
+        'branch_choice',
+        'investigation',
+        'puzzle_solved'
+      ];
+      for (const fallbackPhase of phasePriority) {
+        if (mechanismConfig.phases[fallbackPhase]) {
+          phaseConfig = mechanismConfig.phases[fallbackPhase];
+          break;
+        }
+      }
+    }
+
+    if (!phaseConfig) {
+      if (phase === 'investigation') {
+        phaseConfig = {
+          phase: 'investigation',
+          audio: {
+            bgm: 'bgm_investigation',
+            volume: { bgm: 0.35 },
+            fadeDuration: 600
+          }
+        };
+      } else if (phase === 'memory_reconstruction') {
+        phaseConfig = {
+          phase: 'memory_reconstruction',
+          audio: {
+            bgm: 'bgm_memory_reconstruct',
+            ambient: ['ambient_memory_flow'],
+            volume: { bgm: 0.5, ambient: 0.2 },
+            fadeDuration: 1000
+          }
+        };
+      } else if (phase === 'branch_choice') {
+        phaseConfig = {
+          phase: 'branch_choice',
+          audio: {
+            bgm: 'bgm_choice',
+            ambient: ['ambient_heartbeat'],
+            volume: { bgm: 0.45, ambient: 0.3 },
+            fadeDuration: 800
+          }
+        };
+      } else if (phase === 'puzzle_active' || phase === 'exploration') {
+        phaseConfig = {
+          phase: phase,
+          audio: {
+            bgm: 'bgm_puzzle',
+            volume: { bgm: 0.4 },
+            fadeDuration: 800
+          }
+        };
+      }
+    }
 
     if (phaseConfig) {
       this.applyAudioLayerConfig(phaseConfig.audio, phase !== 'puzzle_solved');
@@ -1040,6 +1209,24 @@ export class AudioModule {
     eventBus.off('audio:play', this.handlePlayAudio.bind(this));
     eventBus.off('settings:update', this.handleSettingsUpdate.bind(this));
     eventBus.off('recording:auto-play', this.handleAutoPlayRecording.bind(this));
+    eventBus.off('exhibition:enter', this.onExhibitionEnter);
+    eventBus.off('exhibition:change', this.onExhibitionEnter);
+    eventBus.off('chapter:enter', this.onChapterEnter);
+    eventBus.off('chapter:complete', this.onChapterComplete);
+    eventBus.off('progress:chapter-complete', this.onChapterComplete);
+    eventBus.off('mechanism:open', this.onMechanismOpen);
+    eventBus.off('mechanism:solve', this.onMechanismSolve);
+    eventBus.off('memorysort:open', this.onMemorySortOpen);
+    eventBus.off('branchchoice:open', this.onBranchChoiceOpen);
+    eventBus.off('restoration:open', this.onRestorationOpen);
+    eventBus.off('hotspot:investigate', this.onHotspotInvestigate);
+    eventBus.off('memory:start', this.onMemoryStart);
+    eventBus.off('memory:complete', this.onMemoryComplete);
+    eventBus.off('poweroutage:start', this.onPowerOutageStart);
+    eventBus.off('poweroutage:event-trigger', this.onPowerOutageEvent);
+    eventBus.off('poweroutage:end', this.onPowerOutageEnd);
+    eventBus.off('exhibition:mode-change', this.onExhibitionModeChange);
+    eventBus.off('game:reset', this.onGameReset);
   }
 }
 
