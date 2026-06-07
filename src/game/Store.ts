@@ -4508,6 +4508,57 @@ class Store {
     return this.setCurrentExhibition(exhibitionId);
   }
 
+  getNextChapter(currentChapterId: string): Chapter | null {
+    const chapters = this.getChapters();
+    const currentIndex = chapters.findIndex(c => c.id === currentChapterId);
+    if (currentIndex === -1 || currentIndex >= chapters.length - 1) return null;
+    return chapters[currentIndex + 1];
+  }
+
+  getChapterUnlockedExhibitions(chapterId: string): Exhibition[] {
+    const chapter = this.getChapterById(chapterId);
+    if (!chapter) return [];
+    
+    return chapter.exhibitions
+      .map(exhId => this.getExhibitionById(exhId))
+      .filter((exh): exh is Exhibition => exh !== undefined && exh.unlocked);
+  }
+
+  getChapterNewExhibitions(chapterId: string): Exhibition[] {
+    const chapters = this.getChapters();
+    const currentIndex = chapters.findIndex(c => c.id === chapterId);
+    if (currentIndex === -1) return [];
+    
+    const chapter = chapters[currentIndex];
+    const prevChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null;
+    const prevExhibitions = prevChapter ? prevChapter.exhibitions : [];
+    
+    return chapter.exhibitions
+      .filter(exhId => !prevExhibitions.includes(exhId))
+      .map(exhId => this.getExhibitionById(exhId))
+      .filter((exh): exh is Exhibition => exh !== undefined);
+  }
+
+  getArchiveProgressForChapter(chapterId: string): { total: number; archived: number; unarchived: string[] } {
+    const chapter = this.getChapterById(chapterId);
+    if (!chapter) return { total: 0, archived: 0, unarchived: [] };
+
+    const requiredClues = chapter.requiredClues;
+    const archivedClues = requiredClues.filter(id => 
+      this.state.archive.archivedClues.includes(id)
+    );
+    const unarchivedClues = requiredClues.filter(id => 
+      this.state.collectedClues.includes(id) && 
+      !this.state.archive.archivedClues.includes(id)
+    );
+
+    return {
+      total: requiredClues.length,
+      archived: archivedClues.length,
+      unarchived: unarchivedClues
+    };
+  }
+
   getNavigationHint(targetId: string, targetType: 'clue' | 'mechanism' | 'exhibition'): { path: string[]; hint: string } {
     const currentExhibition = this.getCurrentExhibition();
     const path: string[] = [];

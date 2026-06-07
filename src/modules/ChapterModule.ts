@@ -348,6 +348,42 @@ export class ChapterModule {
     return btn;
   }
 
+  private createSmallButton(text: string, x: number, y: number, isSecondary: boolean = false): PIXI.Graphics {
+    const btn = new PIXI.Graphics();
+    const color = isSecondary ? GAME_CONFIG.COLORS.BRONZE : GAME_CONFIG.COLORS.AMBER;
+    const textColor = isSecondary ? 0xFFFFFF : GAME_CONFIG.COLORS.DARK_BROWN;
+
+    btn.beginFill(color, 0.9);
+    btn.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 1);
+    btn.drawRoundedRect(0, 0, 90, 40, 10);
+    btn.endFill();
+
+    const btnText = new PIXI.Text(text, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 14,
+      fill: textColor
+    });
+    btnText.anchor.set(0.5);
+    btnText.x = 45;
+    btnText.y = 20;
+    btn.addChild(btnText);
+
+    btn.x = x;
+    btn.y = y;
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+
+    btn.on('pointerover', () => {
+      Animator.tween(btn.scale, { x: 1.05, y: 1.05 }, 120);
+    });
+
+    btn.on('pointerout', () => {
+      Animator.tween(btn.scale, { x: 1, y: 1 }, 120);
+    });
+
+    return btn;
+  }
+
   private showResetConfirm(): void {
     if (!this.settingsPanel) return;
 
@@ -999,38 +1035,7 @@ export class ChapterModule {
     }
   }
 
-  private createSmallButton(text: string, x: number, y: number): PIXI.Graphics {
-    const btn = new PIXI.Graphics();
-    btn.beginFill(GAME_CONFIG.COLORS.AMBER, 0.9);
-    btn.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 1);
-    btn.drawRoundedRect(0, 0, 80, 40, 10);
-    btn.endFill();
 
-    const btnText = new PIXI.Text(text, {
-      fontFamily: GAME_CONFIG.FONTS.BODY,
-      fontSize: 16,
-      fill: GAME_CONFIG.COLORS.DARK_BROWN
-    });
-    btnText.anchor.set(0.5);
-    btnText.x = 40;
-    btnText.y = 20;
-    btn.addChild(btnText);
-
-    btn.x = x;
-    btn.y = y;
-    btn.eventMode = 'static';
-    btn.cursor = 'pointer';
-
-    btn.on('pointerover', () => {
-      Animator.tween(btn.scale, { x: 1.05, y: 1.05 }, 100);
-    });
-
-    btn.on('pointerout', () => {
-      Animator.tween(btn.scale, { x: 1, y: 1 }, 100);
-    });
-
-    return btn;
-  }
 
   private closeProgressPanel(): void {
     if (!this.progressPanel) return;
@@ -1059,14 +1064,27 @@ export class ChapterModule {
   }
 
   private handleChapterComplete(data: { chapterId: string }): void {
-    this.showChapterComplete(data.chapterId);
     this.updateProgress();
     eventBus.emit('progress:chapter-complete', { chapterId: data.chapterId });
+    this.showChapterComplete(data.chapterId, () => {
+      this.showExhibitionUnlockAnimation(data.chapterId, () => {
+        this.showArchivePrompt(data.chapterId, () => {
+          this.showChapterKeyPointReview(data.chapterId, () => {
+            this.showNextStepGuide(data.chapterId, () => {
+              this.updateProgress();
+            });
+          });
+        });
+      });
+    });
   }
 
-  private showChapterComplete(chapterId: string): void {
+  private showChapterComplete(chapterId: string, onComplete: () => void): void {
     const chapter = store.getChapters().find(c => c.id === chapterId);
-    if (!chapter) return;
+    if (!chapter) {
+      onComplete();
+      return;
+    }
 
     const notification = new PIXI.Container();
 
@@ -1118,7 +1136,7 @@ export class ChapterModule {
             () => {
               this.container.removeChild(notification);
               notification.destroy();
-              this.showChapterKeyPointReview(chapterId);
+              onComplete();
             }
           );
         });
@@ -1127,9 +1145,21 @@ export class ChapterModule {
     );
   }
 
-  private showChapterKeyPointReview(chapterId: string): void {
+  private showChapterKeyPointReview(chapterId: string, onComplete: () => void): void {
     const review = store.getChapterKeyPointReview(chapterId);
-    if (!review) return;
+    if (!review) {
+      onComplete();
+      return;
+    }
+
+    const chapter = store.getChapterById(chapterId);
+    const state = store.getState();
+
+    const unarchivedClues = chapter?.requiredClues.filter(clueId => 
+      state.collectedClues.includes(clueId) && !state.archive.archivedClues.includes(clueId)
+    ) || [];
+
+    const unlockedExhibitions = store.getChapterNewExhibitions(chapterId);
 
     const reviewPanel = new PIXI.Container();
 
@@ -1140,27 +1170,28 @@ export class ChapterModule {
     overlay.eventMode = 'static';
     reviewPanel.addChild(overlay);
 
+    const panelHeight = 1220;
     const panel = new PIXI.Graphics();
     panel.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.97);
     panel.lineStyle(4, GAME_CONFIG.COLORS.GOLD, 1);
-    panel.drawRoundedRect(50, 100, 650, 1000, 20);
+    panel.drawRoundedRect(50, 40, 650, panelHeight, 20);
     panel.endFill();
     reviewPanel.addChild(panel);
 
     const titleIcon = new PIXI.Text('🏆', { fontSize: 48 });
     titleIcon.anchor.set(0.5);
     titleIcon.x = 375;
-    titleIcon.y = 160;
+    titleIcon.y = 100;
     reviewPanel.addChild(titleIcon);
 
-    const title = new PIXI.Text('章节回顾', {
+    const title = new PIXI.Text('章节完成', {
       fontFamily: GAME_CONFIG.FONTS.TITLE,
       fontSize: 36,
       fill: GAME_CONFIG.COLORS.GOLD
     });
     title.anchor.set(0.5);
     title.x = 375;
-    title.y = 210;
+    title.y = 150;
     reviewPanel.addChild(title);
 
     const chapterTitle = new PIXI.Text(review.chapterTitle, {
@@ -1170,7 +1201,7 @@ export class ChapterModule {
     });
     chapterTitle.anchor.set(0.5);
     chapterTitle.x = 375;
-    chapterTitle.y = 250;
+    chapterTitle.y = 190;
     reviewPanel.addChild(chapterTitle);
 
     const playTimeMin = Math.round(review.chapterPlayTime / 60000);
@@ -1181,13 +1212,13 @@ export class ChapterModule {
     });
     playTimeText.anchor.set(0.5);
     playTimeText.x = 375;
-    playTimeText.y = 290;
+    playTimeText.y = 230;
     reviewPanel.addChild(playTimeText);
 
     const summaryBg = new PIXI.Graphics();
     summaryBg.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.3);
     summaryBg.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.6);
-    summaryBg.drawRoundedRect(75, 320, 600, 100, 15);
+    summaryBg.drawRoundedRect(75, 260, 600, 100, 15);
     summaryBg.endFill();
     reviewPanel.addChild(summaryBg);
 
@@ -1197,7 +1228,7 @@ export class ChapterModule {
       fill: GAME_CONFIG.COLORS.AMBER
     });
     summaryLabel.x = 100;
-    summaryLabel.y = 340;
+    summaryLabel.y = 280;
     reviewPanel.addChild(summaryLabel);
 
     const summaryText = new PIXI.Text(review.storySummary, {
@@ -1208,13 +1239,61 @@ export class ChapterModule {
       wordWrapWidth: 550
     });
     summaryText.x = 100;
-    summaryText.y = 370;
+    summaryText.y = 310;
     reviewPanel.addChild(summaryText);
+
+    let currentY = 380;
+
+    if (unlockedExhibitions.length > 0) {
+      const unlockBg = new PIXI.Graphics();
+      unlockBg.beginFill(GAME_CONFIG.COLORS.AMBER, 0.25);
+      unlockBg.lineStyle(3, GAME_CONFIG.COLORS.GOLD, 0.8);
+      unlockBg.drawRoundedRect(75, currentY, 600, 100, 15);
+      unlockBg.endFill();
+      reviewPanel.addChild(unlockBg);
+
+      const unlockIcon = new PIXI.Text('🔓', { fontSize: 28 });
+      unlockIcon.x = 100;
+      unlockIcon.y = currentY + 20;
+      reviewPanel.addChild(unlockIcon);
+
+      const unlockLabel = new PIXI.Text(`新展区解锁！ (${unlockedExhibitions.length}个)`, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 20,
+        fill: GAME_CONFIG.COLORS.GOLD,
+        fontWeight: 'bold'
+      });
+      unlockLabel.x = 140;
+      unlockLabel.y = currentY + 25;
+      reviewPanel.addChild(unlockLabel);
+
+      const unlockNames = unlockedExhibitions.map(exh => exh.name).filter(n => n).join('、');
+
+      const unlockNamesText = new PIXI.Text(unlockNames, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: GAME_CONFIG.COLORS.AMBER
+      });
+      unlockNamesText.x = 140;
+      unlockNamesText.y = currentY + 55;
+      reviewPanel.addChild(unlockNamesText);
+
+      const unlockHint = new PIXI.Text('点击下方「前往新展区」立即探索', {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 14,
+        fill: GAME_CONFIG.COLORS.CREAM
+      });
+      unlockHint.x = 140;
+      unlockHint.y = currentY + 78;
+      reviewPanel.addChild(unlockHint);
+
+      currentY += 115;
+    }
 
     const keyPointsBg = new PIXI.Graphics();
     keyPointsBg.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.3);
     keyPointsBg.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.6);
-    keyPointsBg.drawRoundedRect(75, 440, 600, 480, 15);
+    keyPointsBg.drawRoundedRect(75, currentY, 600, 380, 15);
     keyPointsBg.endFill();
     reviewPanel.addChild(keyPointsBg);
 
@@ -1224,12 +1303,12 @@ export class ChapterModule {
       fill: GAME_CONFIG.COLORS.AMBER
     });
     keyPointsLabel.x = 100;
-    keyPointsLabel.y = 460;
+    keyPointsLabel.y = currentY + 20;
     reviewPanel.addChild(keyPointsLabel);
 
     const scrollMask = new PIXI.Graphics();
     scrollMask.beginFill(0x000000);
-    scrollMask.drawRect(75, 495, 600, 410);
+    scrollMask.drawRect(75, currentY + 55, 600, 310);
     scrollMask.endFill();
     reviewPanel.addChild(scrollMask);
 
@@ -1276,17 +1355,19 @@ export class ChapterModule {
       yOffset += 55;
     });
 
+    currentY += 395;
+
     if (review.memoryFragmentsCollected.length > 0) {
       const memoryBg = new PIXI.Graphics();
       memoryBg.beginFill(GAME_CONFIG.COLORS.AMBER, 0.3);
       memoryBg.lineStyle(2, GAME_CONFIG.COLORS.WARM_ORANGE, 0.6);
-      memoryBg.drawRoundedRect(75, 940, 600, 60, 15);
+      memoryBg.drawRoundedRect(75, currentY, 600, 60, 15);
       memoryBg.endFill();
       reviewPanel.addChild(memoryBg);
 
       const memoryIcon = new PIXI.Text('🧩', { fontSize: 24 });
       memoryIcon.x = 100;
-      memoryIcon.y = 955;
+      memoryIcon.y = currentY + 15;
       reviewPanel.addChild(memoryIcon);
 
       const memoryText = new PIXI.Text(`收集记忆碎片：${review.memoryFragmentsCollected.length}个`, {
@@ -1295,11 +1376,191 @@ export class ChapterModule {
         fill: GAME_CONFIG.COLORS.WARM_ORANGE
       });
       memoryText.x = 140;
-      memoryText.y = 960;
+      memoryText.y = currentY + 20;
       reviewPanel.addChild(memoryText);
+
+      currentY += 75;
     }
 
-    const continueBtn = this.createButton('继续冒险', 250, 1020);
+    if (unarchivedClues.length > 0) {
+      const archiveBg = new PIXI.Graphics();
+      archiveBg.beginFill(GAME_CONFIG.COLORS.AMBER, 0.2);
+      archiveBg.lineStyle(3, GAME_CONFIG.COLORS.WARM_ORANGE, 0.8);
+      archiveBg.drawRoundedRect(75, currentY, 600, 120, 15);
+      archiveBg.endFill();
+      reviewPanel.addChild(archiveBg);
+
+      const archiveIcon = new PIXI.Text('📚', { fontSize: 28 });
+      archiveIcon.x = 100;
+      archiveIcon.y = currentY + 18;
+      reviewPanel.addChild(archiveIcon);
+
+      const archiveLabel = new PIXI.Text(`线索待归档 (${unarchivedClues.length}条)`, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 20,
+        fill: GAME_CONFIG.COLORS.WARM_ORANGE,
+        fontWeight: 'bold'
+      });
+      archiveLabel.x = 140;
+      archiveLabel.y = currentY + 23;
+      reviewPanel.addChild(archiveLabel);
+
+      const archiveHint = new PIXI.Text('将收集的线索归档到档案室，完善你的调查档案', {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 15,
+        fill: GAME_CONFIG.COLORS.CREAM
+      });
+      archiveHint.x = 140;
+      archiveHint.y = currentY + 52;
+      reviewPanel.addChild(archiveHint);
+
+      const archiveBtn = new PIXI.Graphics();
+      archiveBtn.beginFill(GAME_CONFIG.COLORS.WARM_ORANGE, 0.9);
+      archiveBtn.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 1);
+      archiveBtn.drawRoundedRect(140, currentY + 78, 160, 35, 10);
+      archiveBtn.endFill();
+      reviewPanel.addChild(archiveBtn);
+
+      const archiveBtnText = new PIXI.Text('📋 前往归档', {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: 0xFFFFFF
+      });
+      archiveBtnText.anchor.set(0.5);
+      archiveBtnText.x = 220;
+      archiveBtnText.y = currentY + 96;
+      reviewPanel.addChild(archiveBtnText);
+
+      archiveBtn.eventMode = 'static';
+      archiveBtn.cursor = 'pointer';
+      archiveBtn.on('pointerdown', () => {
+        audioModule.playSFX('sfx_click');
+        Animator.animate(
+          300,
+          (progress) => {
+            reviewPanel.alpha = 1 - progress;
+          },
+          () => {
+            this.container.removeChild(reviewPanel);
+            reviewPanel.destroy();
+            eventBus.emit('archive:open');
+            onComplete();
+          }
+        );
+      });
+      archiveBtn.on('pointerover', () => {
+        Animator.tween(archiveBtn.scale, { x: 1.05, y: 1.05 }, 150);
+      });
+      archiveBtn.on('pointerout', () => {
+        Animator.tween(archiveBtn.scale, { x: 1, y: 1 }, 150);
+      });
+
+      currentY += 135;
+    }
+
+    const guidanceBg = new PIXI.Graphics();
+    guidanceBg.beginFill(GAME_CONFIG.COLORS.GOLD, 0.15);
+    guidanceBg.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 0.6);
+    guidanceBg.drawRoundedRect(75, currentY, 600, 80, 15);
+    guidanceBg.endFill();
+    reviewPanel.addChild(guidanceBg);
+
+    const guidanceIcon = new PIXI.Text('🧭', { fontSize: 28 });
+    guidanceIcon.x = 100;
+    guidanceIcon.y = currentY + 25;
+    reviewPanel.addChild(guidanceIcon);
+
+    const guidanceLabel = new PIXI.Text('下一步行动', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: GAME_CONFIG.COLORS.GOLD,
+      fontWeight: 'bold'
+    });
+    guidanceLabel.x = 140;
+    guidanceLabel.y = currentY + 30;
+    reviewPanel.addChild(guidanceLabel);
+
+    let nextActionText = '继续探索，发现更多线索和秘密';
+    if (unlockedExhibitions.length > 0) {
+      nextActionText = `前往「${unlockedExhibitions[0].name || '新展区'}」继续调查`;
+    } else if (unarchivedClues.length > 0) {
+      nextActionText = '前往档案室归档收集的线索';
+    } else {
+      const nextChapter = store.getNextChapter(chapterId);
+      if (nextChapter) {
+        nextActionText = `进入「${nextChapter.title}」章节继续冒险`;
+      }
+    }
+
+    const guidanceText = new PIXI.Text(nextActionText, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 16,
+      fill: GAME_CONFIG.COLORS.CREAM
+    });
+    guidanceText.x = 140;
+    guidanceText.y = currentY + 55;
+    reviewPanel.addChild(guidanceText);
+
+    currentY += 95;
+
+    let btnX = 250;
+    let goToExhibitionBtn: PIXI.Graphics | null = null;
+
+    if (unlockedExhibitions.length > 0) {
+      btnX = 150;
+
+      goToExhibitionBtn = new PIXI.Graphics();
+      goToExhibitionBtn.beginFill(GAME_CONFIG.COLORS.GOLD, 0.95);
+      goToExhibitionBtn.lineStyle(3, GAME_CONFIG.COLORS.AMBER, 1);
+      goToExhibitionBtn.drawRoundedRect(btnX, currentY, 200, 55, 15);
+      goToExhibitionBtn.endFill();
+      reviewPanel.addChild(goToExhibitionBtn);
+
+      const goToBtnText = new PIXI.Text('🏛️ 前往新展区', {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 18,
+        fill: GAME_CONFIG.COLORS.DARK_BROWN,
+        fontWeight: 'bold'
+      });
+      goToBtnText.anchor.set(0.5);
+      goToBtnText.x = btnX + 100;
+      goToBtnText.y = currentY + 28;
+      reviewPanel.addChild(goToBtnText);
+
+      goToExhibitionBtn.eventMode = 'static';
+      goToExhibitionBtn.cursor = 'pointer';
+      goToExhibitionBtn.on('pointerdown', () => {
+        audioModule.playSFX('sfx_click');
+        Animator.animate(
+          300,
+          (progress) => {
+            reviewPanel.alpha = 1 - progress;
+          },
+          () => {
+            this.container.removeChild(reviewPanel);
+            reviewPanel.destroy();
+            if (unlockedExhibitions.length > 0) {
+              eventBus.emit('exhibition:enter', { exhibitionId: unlockedExhibitions[0].id });
+            }
+            onComplete();
+          }
+        );
+      });
+      goToExhibitionBtn.on('pointerover', () => {
+        if (goToExhibitionBtn) {
+          Animator.tween(goToExhibitionBtn.scale, { x: 1.05, y: 1.05 }, 150);
+        }
+      });
+      goToExhibitionBtn.on('pointerout', () => {
+        if (goToExhibitionBtn) {
+          Animator.tween(goToExhibitionBtn.scale, { x: 1, y: 1 }, 150);
+        }
+      });
+
+      btnX = 400;
+    }
+
+    const continueBtn = this.createButton('继续冒险', btnX, currentY);
     continueBtn.on('pointerdown', () => {
       audioModule.playSFX('sfx_click');
       Animator.animate(
@@ -1310,6 +1571,7 @@ export class ChapterModule {
         () => {
           this.container.removeChild(reviewPanel);
           reviewPanel.destroy();
+          onComplete();
         }
       );
     });
@@ -1322,6 +1584,624 @@ export class ChapterModule {
       500,
       (progress) => {
         reviewPanel.alpha = progress;
+      },
+      undefined,
+      Animator.easeOutCubic
+    );
+  }
+
+  private showExhibitionUnlockAnimation(chapterId: string, onComplete: () => void): void {
+    const newExhibitions = store.getChapterNewExhibitions(chapterId);
+    
+    if (newExhibitions.length === 0) {
+      onComplete();
+      return;
+    }
+
+    const unlockPanel = new PIXI.Container();
+
+    const overlay = new PIXI.Graphics();
+    overlay.beginFill(0x000000, 0.92);
+    overlay.drawRect(0, 0, GAME_CONFIG.DESIGN_WIDTH, GAME_CONFIG.DESIGN_HEIGHT);
+    overlay.endFill();
+    overlay.eventMode = 'static';
+    unlockPanel.addChild(overlay);
+
+    const titleIcon = new PIXI.Text('🔓', { fontSize: 72 });
+    titleIcon.anchor.set(0.5);
+    titleIcon.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    titleIcon.y = GAME_CONFIG.DESIGN_HEIGHT / 2 - 150;
+    unlockPanel.addChild(titleIcon);
+
+    const title = new PIXI.Text('新展区解锁', {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 42,
+      fill: GAME_CONFIG.COLORS.GOLD,
+      align: 'center'
+    });
+    title.anchor.set(0.5);
+    title.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    title.y = GAME_CONFIG.DESIGN_HEIGHT / 2 - 70;
+    unlockPanel.addChild(title);
+
+    const startY = GAME_CONFIG.DESIGN_HEIGHT / 2 - 20;
+    const itemHeight = 120;
+    const gap = 20;
+
+    newExhibitions.forEach((exhibition, index) => {
+      const item = new PIXI.Container();
+      item.y = startY + index * (itemHeight + gap);
+      item.alpha = 0;
+      item.scale.set(0.8);
+
+      const itemBg = new PIXI.Graphics();
+      itemBg.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.9);
+      itemBg.lineStyle(3, GAME_CONFIG.COLORS.AMBER, 1);
+      itemBg.drawRoundedRect(100, 0, 550, itemHeight, 15);
+      itemBg.endFill();
+      item.addChild(itemBg);
+
+      const glow = new PIXI.Graphics();
+      glow.beginFill(GAME_CONFIG.COLORS.GOLD, 0);
+      glow.drawRoundedRect(95, -5, 560, itemHeight + 10, 18);
+      glow.endFill();
+      item.addChildAt(glow, 0);
+
+      const iconBg = new PIXI.Graphics();
+      iconBg.beginFill(GAME_CONFIG.COLORS.AMBER, 0.3);
+      iconBg.drawCircle(0, 0, 40);
+      iconBg.endFill();
+      iconBg.x = 160;
+      iconBg.y = itemHeight / 2;
+      item.addChild(iconBg);
+
+      const icon = new PIXI.Text('🏛️', { fontSize: 40 });
+      icon.anchor.set(0.5);
+      icon.x = 160;
+      icon.y = itemHeight / 2;
+      item.addChild(icon);
+
+      const name = new PIXI.Text(exhibition.name, {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 24,
+        fill: GAME_CONFIG.COLORS.AMBER
+      });
+      name.x = 220;
+      name.y = 25;
+      item.addChild(name);
+
+      const desc = new PIXI.Text(exhibition.description.slice(0, 45) + '...', {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: 0xCCCCCC,
+        wordWrap: true,
+        wordWrapWidth: 400
+      });
+      desc.x = 220;
+      desc.y = 60;
+      item.addChild(desc);
+
+      unlockPanel.addChild(item);
+
+      Animator.delay(300 + index * 200).then(() => {
+        Animator.animate(
+          500,
+          (progress) => {
+            item.alpha = progress;
+            item.scale.set(0.8 + progress * 0.2);
+            glow.clear();
+            glow.beginFill(GAME_CONFIG.COLORS.GOLD, progress * 0.3);
+            glow.drawRoundedRect(95, -5, 560, itemHeight + 10, 18);
+            glow.endFill();
+          },
+          undefined,
+          Animator.easeOutBack
+        );
+      });
+    });
+
+    const hintText = new PIXI.Text('点击任意位置继续', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: GAME_CONFIG.COLORS.CREAM,
+      align: 'center'
+    });
+    hintText.anchor.set(0.5);
+    hintText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    hintText.y = GAME_CONFIG.DESIGN_HEIGHT - 150;
+    hintText.alpha = 0;
+    unlockPanel.addChild(hintText);
+
+    const totalDuration = 300 + newExhibitions.length * 200 + 600;
+    Animator.delay(totalDuration).then(() => {
+      Animator.animate(
+        800,
+        (progress) => {
+          hintText.alpha = progress;
+          hintText.y = GAME_CONFIG.DESIGN_HEIGHT - 150 + Math.sin(progress * Math.PI * 4) * 5;
+        },
+        undefined,
+        undefined,
+        true
+      );
+    });
+
+    unlockPanel.alpha = 0;
+    this.container.addChild(unlockPanel);
+
+    let canContinue = false;
+    Animator.animate(
+      500,
+      (progress) => {
+        unlockPanel.alpha = progress;
+      },
+      () => {
+        Animator.delay(totalDuration).then(() => {
+          canContinue = true;
+        });
+      },
+      Animator.easeOutCubic
+    );
+
+    overlay.on('pointerdown', () => {
+      if (!canContinue) return;
+      audioModule.playSFX('sfx_click');
+      Animator.animate(
+        400,
+        (progress) => {
+          unlockPanel.alpha = 1 - progress;
+        },
+        () => {
+          this.container.removeChild(unlockPanel);
+          unlockPanel.destroy();
+          onComplete();
+        }
+      );
+    });
+  }
+
+  private showArchivePrompt(chapterId: string, onComplete: () => void): void {
+    const archiveProgress = store.getArchiveProgressForChapter(chapterId);
+    const chapter = store.getChapterById(chapterId);
+
+    if (archiveProgress.unarchived.length === 0 || !chapter) {
+      onComplete();
+      return;
+    }
+
+    const promptPanel = new PIXI.Container();
+
+    const overlay = new PIXI.Graphics();
+    overlay.beginFill(0x000000, 0.9);
+    overlay.drawRect(0, 0, GAME_CONFIG.DESIGN_WIDTH, GAME_CONFIG.DESIGN_HEIGHT);
+    overlay.endFill();
+    overlay.eventMode = 'static';
+    promptPanel.addChild(overlay);
+
+    const panel = new PIXI.Graphics();
+    panel.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.97);
+    panel.lineStyle(4, GAME_CONFIG.COLORS.AMBER, 1);
+    panel.drawRoundedRect(75, 250, 600, 800, 20);
+    panel.endFill();
+    promptPanel.addChild(panel);
+
+    const titleIcon = new PIXI.Text('📁', { fontSize: 64 });
+    titleIcon.anchor.set(0.5);
+    titleIcon.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    titleIcon.y = 330;
+    promptPanel.addChild(titleIcon);
+
+    const title = new PIXI.Text('线索归档', {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 36,
+      fill: GAME_CONFIG.COLORS.AMBER,
+      align: 'center'
+    });
+    title.anchor.set(0.5);
+    title.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    title.y = 400;
+    promptPanel.addChild(title);
+
+    const subtitle = new PIXI.Text(`「${chapter.title}」的调查告一段落`, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 20,
+      fill: GAME_CONFIG.COLORS.CREAM,
+      align: 'center'
+    });
+    subtitle.anchor.set(0.5);
+    subtitle.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    subtitle.y = 445;
+    promptPanel.addChild(subtitle);
+
+    const progressBg = new PIXI.Graphics();
+    progressBg.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.3);
+    progressBg.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.6);
+    progressBg.drawRoundedRect(125, 490, 500, 60, 15);
+    progressBg.endFill();
+    promptPanel.addChild(progressBg);
+
+    const progressPercent = archiveProgress.total > 0 
+      ? archiveProgress.archived / archiveProgress.total 
+      : 0;
+    const progressFill = new PIXI.Graphics();
+    progressFill.beginFill(GAME_CONFIG.COLORS.AMBER, 0.8);
+    progressFill.drawRoundedRect(125, 490, 500 * progressPercent, 60, 15);
+    progressFill.endFill();
+    promptPanel.addChild(progressFill);
+
+    const progressText = new PIXI.Text(
+      `归档进度: ${archiveProgress.archived} / ${archiveProgress.total}`,
+      {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 20,
+        fill: GAME_CONFIG.COLORS.GOLD
+      }
+    );
+    progressText.anchor.set(0.5);
+    progressText.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    progressText.y = 520;
+    promptPanel.addChild(progressText);
+
+    if (archiveProgress.unarchived.length > 0) {
+      const hintTitle = new PIXI.Text('待归档线索', {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 22,
+        fill: GAME_CONFIG.COLORS.WARM_ORANGE
+      });
+      hintTitle.x = 125;
+      hintTitle.y = 580;
+      promptPanel.addChild(hintTitle);
+
+      let yOffset = 620;
+      archiveProgress.unarchived.slice(0, 4).forEach((clueId, _index) => {
+        const clue = store.getClueById(clueId);
+        if (!clue) return;
+
+        const itemBg = new PIXI.Graphics();
+        itemBg.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.3);
+        itemBg.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.5);
+        itemBg.drawRoundedRect(125, yOffset, 500, 55, 10);
+        itemBg.endFill();
+        promptPanel.addChild(itemBg);
+
+        const iconText = new PIXI.Text(clue.icon, { fontSize: 28 });
+        iconText.x = 145;
+        iconText.y = yOffset + 10;
+        promptPanel.addChild(iconText);
+
+        const nameText = new PIXI.Text(clue.name, {
+          fontFamily: GAME_CONFIG.FONTS.BODY,
+          fontSize: 18,
+          fill: GAME_CONFIG.COLORS.CREAM
+        });
+        nameText.x = 190;
+        nameText.y = yOffset + 15;
+        promptPanel.addChild(nameText);
+
+        yOffset += 65;
+      });
+
+      if (archiveProgress.unarchived.length > 4) {
+        const moreText = new PIXI.Text(`...还有 ${archiveProgress.unarchived.length - 4} 条线索待归档`, {
+          fontFamily: GAME_CONFIG.FONTS.BODY,
+          fontSize: 16,
+          fill: GAME_CONFIG.COLORS.WARM_ORANGE
+        });
+        moreText.x = 125;
+        moreText.y = yOffset + 10;
+        promptPanel.addChild(moreText);
+      }
+    }
+
+    const tipBg = new PIXI.Graphics();
+    tipBg.beginFill(GAME_CONFIG.COLORS.AMBER, 0.15);
+    tipBg.lineStyle(2, GAME_CONFIG.COLORS.WARM_ORANGE, 0.6);
+    tipBg.drawRoundedRect(125, 680, 500, 70, 12);
+    tipBg.endFill();
+    promptPanel.addChild(tipBg);
+
+    const tipIcon = new PIXI.Text('💡', { fontSize: 28 });
+    tipIcon.x = 150;
+    tipIcon.y = 700;
+    promptPanel.addChild(tipIcon);
+
+    const tipText = new PIXI.Text(
+      '归档线索可解锁馆长的口述录音，\n了解更多背后的故事',
+      {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: GAME_CONFIG.COLORS.WARM_ORANGE,
+        lineHeight: 24
+      }
+    );
+    tipText.x = 195;
+    tipText.y = 695;
+    promptPanel.addChild(tipText);
+
+    const archiveBtn = this.createButton('立即归档', 125, 780);
+    archiveBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      Animator.animate(
+        300,
+        (progress) => {
+          promptPanel.alpha = 1 - progress;
+        },
+        () => {
+          this.container.removeChild(promptPanel);
+          promptPanel.destroy();
+          eventBus.emit('archive:auto-archive', { chapterId });
+          archiveProgress.unarchived.forEach(clueId => {
+            store.archiveClue(clueId);
+          });
+          store.completeChapterArchive(chapterId);
+          onComplete();
+        }
+      );
+    });
+    promptPanel.addChild(archiveBtn);
+
+    const skipBtn = this.createButton('稍后再说', 125, 865, true);
+    skipBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      Animator.animate(
+        300,
+        (progress) => {
+          promptPanel.alpha = 1 - progress;
+        },
+        () => {
+          this.container.removeChild(promptPanel);
+          promptPanel.destroy();
+          onComplete();
+        }
+      );
+    });
+    promptPanel.addChild(skipBtn);
+
+    promptPanel.alpha = 0;
+    this.container.addChild(promptPanel);
+
+    Animator.animate(
+      400,
+      (progress) => {
+        promptPanel.alpha = progress;
+        promptPanel.scale.set(0.95 + progress * 0.05);
+      },
+      undefined,
+      Animator.easeOutCubic
+    );
+  }
+
+  private showNextStepGuide(chapterId: string, onComplete: () => void): void {
+    const nextChapter = store.getNextChapter(chapterId);
+    const currentChapter = store.getChapterById(chapterId);
+    const newExhibitions = store.getChapterNewExhibitions(chapterId);
+
+    const guidePanel = new PIXI.Container();
+
+    const overlay = new PIXI.Graphics();
+    overlay.beginFill(0x000000, 0.88);
+    overlay.drawRect(0, 0, GAME_CONFIG.DESIGN_WIDTH, GAME_CONFIG.DESIGN_HEIGHT);
+    overlay.endFill();
+    overlay.eventMode = 'static';
+    guidePanel.addChild(overlay);
+
+    const panel = new PIXI.Graphics();
+    panel.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.97);
+    panel.lineStyle(4, GAME_CONFIG.COLORS.GOLD, 1);
+    panel.drawRoundedRect(50, 200, 650, 900, 25);
+    panel.endFill();
+    guidePanel.addChild(panel);
+
+    const titleIcon = new PIXI.Text('✨', { fontSize: 64 });
+    titleIcon.anchor.set(0.5);
+    titleIcon.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    titleIcon.y = 290;
+    guidePanel.addChild(titleIcon);
+
+    const title = new PIXI.Text('旅程继续', {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 38,
+      fill: GAME_CONFIG.COLORS.GOLD,
+      align: 'center'
+    });
+    title.anchor.set(0.5);
+    title.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    title.y = 360;
+    guidePanel.addChild(title);
+
+    if (currentChapter) {
+      const summary = new PIXI.Text(
+        `你已完成「${currentChapter.title}」\n琥珀的记忆正在逐渐苏醒...`,
+        {
+          fontFamily: GAME_CONFIG.FONTS.BODY,
+          fontSize: 20,
+          fill: GAME_CONFIG.COLORS.CREAM,
+          align: 'center',
+          lineHeight: 32
+        }
+      );
+      summary.anchor.set(0.5);
+      summary.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+      summary.y = 410;
+      guidePanel.addChild(summary);
+    }
+
+    let currentY = 470;
+
+    if (nextChapter) {
+      const nextChapterBg = new PIXI.Graphics();
+      nextChapterBg.beginFill(GAME_CONFIG.COLORS.AMBER, 0.2);
+      nextChapterBg.lineStyle(3, GAME_CONFIG.COLORS.AMBER, 0.8);
+      nextChapterBg.drawRoundedRect(100, currentY, 550, 140, 15);
+      nextChapterBg.endFill();
+      guidePanel.addChild(nextChapterBg);
+
+      const nextIcon = new PIXI.Text('📖', { fontSize: 44 });
+      nextIcon.x = 130;
+      nextIcon.y = currentY + 40;
+      guidePanel.addChild(nextIcon);
+
+      const nextLabel = new PIXI.Text('下一章节', {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: GAME_CONFIG.COLORS.WARM_ORANGE
+      });
+      nextLabel.x = 190;
+      nextLabel.y = currentY + 30;
+      guidePanel.addChild(nextLabel);
+
+      const nextTitle = new PIXI.Text(nextChapter.title, {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 24,
+        fill: GAME_CONFIG.COLORS.AMBER
+      });
+      nextTitle.x = 190;
+      nextTitle.y = currentY + 55;
+      guidePanel.addChild(nextTitle);
+
+      const nextDesc = new PIXI.Text(
+        nextChapter.description.slice(0, 50) + '...',
+        {
+          fontFamily: GAME_CONFIG.FONTS.BODY,
+          fontSize: 15,
+          fill: 0xCCCCCC,
+          wordWrap: true,
+          wordWrapWidth: 420
+        }
+      );
+      nextDesc.x = 190;
+      nextDesc.y = currentY + 88;
+      guidePanel.addChild(nextDesc);
+
+      currentY += 160;
+    }
+
+    if (newExhibitions.length > 0) {
+      const newExhLabel = new PIXI.Text('🗺️ 已解锁展区', {
+        fontFamily: GAME_CONFIG.FONTS.TITLE,
+        fontSize: 22,
+        fill: GAME_CONFIG.COLORS.WARM_ORANGE
+      });
+      newExhLabel.x = 100;
+      newExhLabel.y = currentY;
+      guidePanel.addChild(newExhLabel);
+      currentY += 40;
+
+      newExhibitions.slice(0, 3).forEach((exhibition, _index) => {
+        const exhBg = new PIXI.Graphics();
+        exhBg.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.3);
+        exhBg.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.5);
+        exhBg.drawRoundedRect(100, currentY, 550, 60, 12);
+        exhBg.endFill();
+        guidePanel.addChild(exhBg);
+
+        const exhIcon = new PIXI.Text('🏛️', { fontSize: 26 });
+        exhIcon.x = 125;
+        exhIcon.y = currentY + 12;
+        guidePanel.addChild(exhIcon);
+
+        const exhName = new PIXI.Text(exhibition.name, {
+          fontFamily: GAME_CONFIG.FONTS.BODY,
+          fontSize: 18,
+          fill: GAME_CONFIG.COLORS.CREAM
+        });
+        exhName.x = 170;
+        exhName.y = currentY + 17;
+        guidePanel.addChild(exhName);
+
+        const goBtn = this.createSmallButton('前往', 530, currentY + 10);
+        goBtn.on('pointerdown', () => {
+          audioModule.playSFX('sfx_click');
+          Animator.animate(
+            300,
+            (progress) => {
+              guidePanel.alpha = 1 - progress;
+            },
+            () => {
+              this.container.removeChild(guidePanel);
+              guidePanel.destroy();
+              store.navigateToExhibition(exhibition.id);
+              eventBus.emit('exhibition:change', { exhibitionId: exhibition.id });
+              onComplete();
+            }
+          );
+        });
+        guidePanel.addChild(goBtn);
+
+        currentY += 70;
+      });
+    }
+
+    const tipsBg = new PIXI.Graphics();
+    tipsBg.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.25);
+    tipsBg.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.4);
+    tipsBg.drawRoundedRect(100, currentY + 10, 550, 80, 12);
+    tipsBg.endFill();
+    guidePanel.addChild(tipsBg);
+
+    const tipsIcon = new PIXI.Text('🎯', { fontSize: 28 });
+    tipsIcon.x = 125;
+    tipsIcon.y = currentY + 32;
+    guidePanel.addChild(tipsIcon);
+
+    const tipsText = new PIXI.Text(
+      nextChapter 
+        ? '建议：先探索新解锁的展区，\n收集线索后推进下一章节'
+        : '所有章节已完成，\n前往终章揭晓最终结局',
+      {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: GAME_CONFIG.COLORS.CREAM,
+        lineHeight: 24
+      }
+    );
+    tipsText.x = 165;
+    tipsText.y = currentY + 28;
+    guidePanel.addChild(tipsText);
+
+    const continueBtn = this.createButton('继续探索', 250, currentY + 110);
+    continueBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      Animator.animate(
+        300,
+        (progress) => {
+          guidePanel.alpha = 1 - progress;
+        },
+        () => {
+          this.container.removeChild(guidePanel);
+          guidePanel.destroy();
+          onComplete();
+        }
+      );
+    });
+    guidePanel.addChild(continueBtn);
+
+    const archiveBtn = this.createButton('查看档案', 250, currentY + 190, true);
+    archiveBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      Animator.animate(
+        300,
+        (progress) => {
+          guidePanel.alpha = 1 - progress;
+        },
+        () => {
+          this.container.removeChild(guidePanel);
+          guidePanel.destroy();
+          eventBus.emit('archive:open');
+          onComplete();
+        }
+      );
+    });
+    guidePanel.addChild(archiveBtn);
+
+    guidePanel.alpha = 0;
+    this.container.addChild(guidePanel);
+
+    Animator.animate(
+      450,
+      (progress) => {
+        guidePanel.alpha = progress;
+        guidePanel.scale.set(0.92 + progress * 0.08);
       },
       undefined,
       Animator.easeOutCubic

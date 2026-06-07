@@ -18,6 +18,7 @@ export class ExhibitionModule {
   private transitionOverlay: PIXI.Graphics;
   private animations: (() => void)[] = [];
   private currentMode: ExhibitionMode = 'day';
+  private unlockAnimation: PIXI.Container | null = null;
 
   constructor(container: PIXI.Container) {
     this.container = container;
@@ -35,6 +36,7 @@ export class ExhibitionModule {
     eventBus.on('exhibition:enter', this.handleExhibitionEnter.bind(this));
     eventBus.on('exhibition:mode-change', this.handleModeChange.bind(this));
     eventBus.on('nightpatrol:mechanism-reset', this.handleMechanismReset.bind(this));
+    eventBus.on('exhibition:unlock', this.handleExhibitionUnlock.bind(this));
   }
 
   private handleExhibitionEnter(data: { exhibitionId: string }): void {
@@ -57,6 +59,210 @@ export class ExhibitionModule {
         this.createHotspot(hotspot);
       }
     }
+  }
+
+  private handleExhibitionUnlock(data: { exhibitionId: string }): void {
+    const exhibition = store.getExhibitionById(data.exhibitionId);
+    if (exhibition) {
+      this.showExhibitionUnlockAnimation(exhibition);
+    }
+  }
+
+  private showExhibitionUnlockAnimation(exhibition: Exhibition): void {
+    if (this.unlockAnimation) {
+      this.container.removeChild(this.unlockAnimation);
+      this.unlockAnimation.destroy();
+    }
+
+    this.unlockAnimation = new PIXI.Container();
+
+    const overlay = new PIXI.Graphics();
+    overlay.beginFill(0x000000, 0.85);
+    overlay.drawRect(0, 0, GAME_CONFIG.DESIGN_WIDTH, GAME_CONFIG.DESIGN_HEIGHT);
+    overlay.endFill();
+    overlay.eventMode = 'static';
+    this.unlockAnimation.addChild(overlay);
+
+    const glowContainer = new PIXI.Container();
+    glowContainer.alpha = 0;
+    glowContainer.y = GAME_CONFIG.DESIGN_HEIGHT / 2;
+    glowContainer.x = GAME_CONFIG.DESIGN_WIDTH / 2;
+    this.unlockAnimation.addChild(glowContainer);
+
+    const glowCount = 12;
+    for (let i = 0; i < glowCount; i++) {
+      const glow = new PIXI.Graphics();
+      const angle = (i / glowCount) * Math.PI * 2;
+      const distance = 150;
+      glow.beginFill(GAME_CONFIG.COLORS.GOLD, 0.8);
+      glow.drawCircle(0, 0, 12 + Math.random() * 8);
+      glow.endFill();
+      glow.x = Math.cos(angle) * distance;
+      glow.y = Math.sin(angle) * distance;
+      glowContainer.addChild(glow);
+
+      Animator.animate(
+        2000,
+        (progress) => {
+          const newAngle = angle + progress * Math.PI * 2;
+          const newDistance = distance * (1 - progress * 0.3);
+          glow.x = Math.cos(newAngle) * newDistance;
+          glow.y = Math.sin(newAngle) * newDistance;
+          glow.alpha = 0.8 * (1 - progress);
+        },
+        undefined,
+        undefined,
+        true
+      );
+    }
+
+    const centerGlow = new PIXI.Graphics();
+    for (let i = 5; i > 0; i--) {
+      centerGlow.beginFill(GAME_CONFIG.COLORS.AMBER, 0.15 * i);
+      centerGlow.drawCircle(0, 0, 80 + i * 30);
+      centerGlow.endFill();
+    }
+    glowContainer.addChild(centerGlow);
+
+    const iconBg = new PIXI.Graphics();
+    iconBg.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.95);
+    iconBg.lineStyle(5, GAME_CONFIG.COLORS.GOLD, 1);
+    iconBg.drawRoundedRect(-140, -90, 280, 180, 25);
+    iconBg.endFill();
+    glowContainer.addChild(iconBg);
+
+    const unlockIcon = new PIXI.Text('🔓', { fontSize: 64 });
+    unlockIcon.anchor.set(0.5);
+    unlockIcon.y = -30;
+    glowContainer.addChild(unlockIcon);
+
+    const titleText = new PIXI.Text('新展区解锁！', {
+      fontFamily: GAME_CONFIG.FONTS.TITLE,
+      fontSize: 36,
+      fill: GAME_CONFIG.COLORS.GOLD,
+      align: 'center'
+    });
+    titleText.anchor.set(0.5);
+    titleText.y = 35;
+    glowContainer.addChild(titleText);
+
+    const nameText = new PIXI.Text(exhibition.name, {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 24,
+      fill: GAME_CONFIG.COLORS.AMBER,
+      align: 'center'
+    });
+    nameText.anchor.set(0.5);
+    nameText.y = 80;
+    glowContainer.addChild(nameText);
+
+    const descText = new PIXI.Text(exhibition.description.slice(0, 50) + '...', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 16,
+      fill: 0xCCCCCC,
+      align: 'center',
+      wordWrap: true,
+      wordWrapWidth: 500
+    });
+    descText.anchor.set(0.5, 0);
+    descText.y = 115;
+    glowContainer.addChild(descText);
+
+    const goBtn = new PIXI.Graphics();
+    goBtn.beginFill(GAME_CONFIG.COLORS.AMBER, 0.95);
+    goBtn.lineStyle(3, GAME_CONFIG.COLORS.GOLD, 1);
+    goBtn.drawRoundedRect(-100, 170, 200, 55, 15);
+    goBtn.endFill();
+    glowContainer.addChild(goBtn);
+
+    const goBtnText = new PIXI.Text('立即前往', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 22,
+      fill: GAME_CONFIG.COLORS.DARK_BROWN
+    });
+    goBtnText.anchor.set(0.5);
+    goBtnText.y = 198;
+    glowContainer.addChild(goBtnText);
+
+    const skipBtn = new PIXI.Graphics();
+    skipBtn.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.8);
+    skipBtn.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.6);
+    skipBtn.drawRoundedRect(-70, 240, 140, 40, 12);
+    skipBtn.endFill();
+    glowContainer.addChild(skipBtn);
+
+    const skipBtnText = new PIXI.Text('稍后再去', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: 0xFFFFFF
+    });
+    skipBtnText.anchor.set(0.5);
+    skipBtnText.y = 260;
+    glowContainer.addChild(skipBtnText);
+
+    goBtn.eventMode = 'static';
+    goBtn.cursor = 'pointer';
+    goBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      this.closeUnlockAnimation();
+      Animator.delay(200).then(() => {
+        this.loadExhibition(exhibition.id);
+      });
+    });
+
+    skipBtn.eventMode = 'static';
+    skipBtn.cursor = 'pointer';
+    skipBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      this.closeUnlockAnimation();
+    });
+
+    goBtn.on('pointerover', () => {
+      Animator.tween(goBtn.scale, { x: 1.05, y: 1.05 }, 150);
+    });
+    goBtn.on('pointerout', () => {
+      Animator.tween(goBtn.scale, { x: 1, y: 1 }, 150);
+    });
+
+    skipBtn.on('pointerover', () => {
+      Animator.tween(skipBtn.scale, { x: 1.05, y: 1.05 }, 150);
+    });
+    skipBtn.on('pointerout', () => {
+      Animator.tween(skipBtn.scale, { x: 1, y: 1 }, 150);
+    });
+
+    this.container.addChild(this.unlockAnimation);
+    audioModule.playSFX('sfx_unlock');
+
+    Animator.animate(
+      600,
+      (progress) => {
+        glowContainer.alpha = progress;
+        glowContainer.scale.set(0.5 + progress * 0.5);
+      },
+      undefined,
+      Animator.easeOutBack
+    );
+  }
+
+  private closeUnlockAnimation(): void {
+    if (!this.unlockAnimation) return;
+
+    const animation = this.unlockAnimation;
+    Animator.animate(
+      400,
+      (progress) => {
+        animation.alpha = 1 - progress;
+      },
+      () => {
+        if (animation.parent) {
+          animation.parent.removeChild(animation);
+        }
+        animation.destroy();
+        this.unlockAnimation = null;
+      },
+      Animator.easeInCubic
+    );
   }
 
   loadExhibition(exhibitionId: string, withTransition: boolean = true): void {
@@ -946,6 +1152,12 @@ export class ExhibitionModule {
     eventBus.off('exhibition:enter', this.handleExhibitionEnter.bind(this));
     eventBus.off('exhibition:mode-change', this.handleModeChange.bind(this));
     eventBus.off('nightpatrol:mechanism-reset', this.handleMechanismReset.bind(this));
+    eventBus.off('exhibition:unlock', this.handleExhibitionUnlock.bind(this));
+
+    if (this.unlockAnimation) {
+      this.unlockAnimation.destroy({ children: true });
+      this.unlockAnimation = null;
+    }
   }
 
   get isActive(): boolean {
