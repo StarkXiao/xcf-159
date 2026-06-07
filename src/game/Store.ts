@@ -671,6 +671,18 @@ class Store {
     return this.recordings.filter(r => r.unlocked).map(r => ({ ...r }));
   }
 
+  getUnlockedExhibitions(): { id: string; name: string; chapterId: string }[] {
+    return this.state.unlockedExhibitions.map(id => {
+      const exhibition = this.exhibitions.find(e => e.id === id);
+      const chapter = this.chapters.find(ch => ch.exhibitions.includes(id));
+      return {
+        id,
+        name: exhibition?.name || id,
+        chapterId: chapter?.id || ''
+      };
+    }).filter(e => e.name !== e.id);
+  }
+
   getRecordingsByChapter(chapterId: string): AudioRecording[] {
     return this.recordings.filter(r => r.chapterId === chapterId).map(r => ({ ...r }));
   }
@@ -3614,6 +3626,16 @@ class Store {
   getDistinctExhibitionsForCollectedClues(): { id: string; name: string; chapterId: string }[] {
     const exhibitionSet = new Map<string, { name: string; chapterId: string }>();
     
+    const unlockedExhibitions = this.getUnlockedExhibitions();
+    unlockedExhibitions.forEach(exhibition => {
+      if (!exhibitionSet.has(exhibition.id)) {
+        exhibitionSet.set(exhibition.id, {
+          name: exhibition.name,
+          chapterId: exhibition.chapterId
+        });
+      }
+    });
+    
     this.clues.filter(c => c.collected).forEach(clue => {
       clue.mechanismPurpose?.forEach(p => {
         if (p.exhibitionId && !exhibitionSet.has(p.exhibitionId)) {
@@ -3629,11 +3651,18 @@ class Store {
       });
     });
 
-    return Array.from(exhibitionSet.entries()).map(([id, data]) => ({ 
-      id, 
-      name: data.name, 
-      chapterId: data.chapterId 
-    }));
+    return Array.from(exhibitionSet.entries())
+      .map(([id, data]) => ({ 
+        id, 
+        name: data.name, 
+        chapterId: data.chapterId 
+      }))
+      .sort((a, b) => {
+        if (a.chapterId !== b.chapterId) {
+          return a.chapterId.localeCompare(b.chapterId);
+        }
+        return a.name.localeCompare(b.name, 'zh-CN');
+      });
   }
 }
 
