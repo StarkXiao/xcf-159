@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose, ChapterKeyPoint, ChapterIncompleteCondition, MemoryFragmentGap, ChapterProgressAnalysis, ChapterKeyPointReview, MemoryPuzzleState, MemoryPuzzleAttempt, MemoryPuzzleScoreResult, MemorySortHint, MemorySortSkipResult, BreakpointState, MechanismProgress, NarrativeProgress } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose, ChapterKeyPoint, ChapterIncompleteCondition, MemoryFragmentGap, ChapterProgressAnalysis, ChapterKeyPointReview, MemoryPuzzleState, MemoryPuzzleAttempt, MemoryPuzzleScoreResult, MemorySortHint, MemorySortSkipResult, BreakpointState, MechanismProgress, NarrativeProgress, MechanismSolveRecord, SideQuestProgress, EndingEvaluationState, EndingUnlockConditions, EndingConditionWeights, EndingAnalysis, EndingConditionSatisfaction } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -183,6 +183,16 @@ class Store {
       autoSave: false
     };
 
+    const defaultEndingEvaluation: EndingEvaluationState = {
+      mechanismSolveRecords: [],
+      sideQuestProgress: [],
+      hiddenCluesCollected: [],
+      mechanismAttemptCounts: {},
+      mechanismHintCounts: {},
+      mechanismStartTime: {},
+      optimalMechanisms: []
+    };
+
     this.state = savedState || {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -205,7 +215,8 @@ class Store {
       authenticity: defaultAuthenticity,
       memoryCorridor: defaultMemoryCorridor,
       memoryPuzzleRecovery: {},
-      breakpoint: defaultBreakpoint
+      breakpoint: defaultBreakpoint,
+      endingEvaluation: defaultEndingEvaluation
     };
 
     if (!this.state.archive) {
@@ -246,6 +257,10 @@ class Store {
 
     if (!this.state.breakpoint) {
       this.state.breakpoint = defaultBreakpoint;
+    }
+
+    if (!this.state.endingEvaluation) {
+      this.state.endingEvaluation = defaultEndingEvaluation;
     }
 
     if (savedState && savedState.breakpoint) {
@@ -649,11 +664,32 @@ class Store {
     return password === mech.answer;
   }
 
-  solveMechanism(mechanismId: string): boolean {
+  solveMechanism(mechanismId: string, solutionPath: string[] = []): boolean {
     if (this.state.solvedMechanisms.includes(mechanismId)) return false;
 
     const mech = this.mechanisms.find(m => m.id === mechanismId);
     if (!mech) return false;
+
+    const attempts = this.state.endingEvaluation.mechanismAttemptCounts[mechanismId] || 1;
+    const hintsUsed = this.state.endingEvaluation.mechanismHintCounts[mechanismId] || 0;
+    const startTime = this.state.endingEvaluation.mechanismStartTime[mechanismId] || Date.now();
+    const solveTime = Date.now() - startTime;
+    const isOptimal = attempts === 1 && hintsUsed === 0;
+
+    const solveRecord: MechanismSolveRecord = {
+      mechanismId,
+      solvedAt: Date.now(),
+      attempts,
+      hintsUsed,
+      solveTime,
+      solutionPath,
+      isOptimal
+    };
+
+    this.state.endingEvaluation.mechanismSolveRecords.push(solveRecord);
+    if (isOptimal) {
+      this.state.endingEvaluation.optimalMechanisms.push(mechanismId);
+    }
 
     mech.solved = true;
     this.state.solvedMechanisms.push(mechanismId);
@@ -1091,6 +1127,15 @@ class Store {
         savedAt: Date.now(),
         playTime: 0,
         autoSave: false
+      },
+      endingEvaluation: {
+        mechanismSolveRecords: [],
+        sideQuestProgress: [],
+        hiddenCluesCollected: [],
+        mechanismAttemptCounts: {},
+        mechanismHintCounts: {},
+        mechanismStartTime: {},
+        optimalMechanisms: []
       }
     };
     this.gameStartTime = Date.now();
@@ -1198,9 +1243,85 @@ class Store {
 
   setActiveMechanism(mechanismId: string | null): void {
     this.activeMechanismId = mechanismId;
+    if (mechanismId && !this.state.endingEvaluation.mechanismStartTime[mechanismId]) {
+      this.state.endingEvaluation.mechanismStartTime[mechanismId] = Date.now();
+    }
     if (mechanismId) {
       this.saveBreakpoint(false);
     }
+  }
+
+  recordMechanismAttempt(mechanismId: string): void {
+    if (!this.state.solvedMechanisms.includes(mechanismId)) {
+      this.state.endingEvaluation.mechanismAttemptCounts[mechanismId] = 
+        (this.state.endingEvaluation.mechanismAttemptCounts[mechanismId] || 0) + 1;
+      this.saveToStorage();
+    }
+  }
+
+  recordMechanismHintUsed(mechanismId: string): void {
+    if (!this.state.solvedMechanisms.includes(mechanismId)) {
+      this.state.endingEvaluation.mechanismHintCounts[mechanismId] = 
+        (this.state.endingEvaluation.mechanismHintCounts[mechanismId] || 0) + 1;
+      this.saveToStorage();
+    }
+  }
+
+  getMechanismSolveRecord(mechanismId: string): MechanismSolveRecord | undefined {
+    return this.state.endingEvaluation.mechanismSolveRecords.find(r => r.mechanismId === mechanismId);
+  }
+
+  collectHiddenClue(clueId: string): boolean {
+    if (this.state.endingEvaluation.hiddenCluesCollected.includes(clueId)) return false;
+    
+    const clue = this.clues.find(c => c.id === clueId);
+    if (!clue) return false;
+
+    this.state.endingEvaluation.hiddenCluesCollected.push(clueId);
+    const collected = this.collectClue(clueId);
+    
+    eventBus.emit('hiddenclue:collect', { clueId });
+    this.saveToStorage();
+    return collected;
+  }
+
+  getHiddenCluesCollected(): string[] {
+    return [...this.state.endingEvaluation.hiddenCluesCollected];
+  }
+
+  updateSideQuestProgress(questId: string, completed: boolean, choicesMade: string[] = []): boolean {
+    const existingIndex = this.state.endingEvaluation.sideQuestProgress.findIndex(q => q.questId === questId);
+    
+    if (existingIndex >= 0) {
+      if (this.state.endingEvaluation.sideQuestProgress[existingIndex].completed) return false;
+      this.state.endingEvaluation.sideQuestProgress[existingIndex] = {
+        ...this.state.endingEvaluation.sideQuestProgress[existingIndex],
+        completed,
+        completedAt: completed ? Date.now() : undefined,
+        choicesMade: [...this.state.endingEvaluation.sideQuestProgress[existingIndex].choicesMade, ...choicesMade]
+      };
+    } else {
+      this.state.endingEvaluation.sideQuestProgress.push({
+        questId,
+        completed,
+        completedAt: completed ? Date.now() : undefined,
+        choicesMade
+      });
+    }
+
+    eventBus.emit('sidequest:update', { questId, completed });
+    this.saveToStorage();
+    return true;
+  }
+
+  getSideQuestProgress(questId: string): SideQuestProgress | undefined {
+    return this.state.endingEvaluation.sideQuestProgress.find(q => q.questId === questId);
+  }
+
+  getCompletedSideQuests(): string[] {
+    return this.state.endingEvaluation.sideQuestProgress
+      .filter(q => q.completed)
+      .map(q => q.questId);
   }
 
   setMechanismInput(mechanismId: string, input: string): void {
@@ -2980,44 +3101,446 @@ class Store {
     return true;
   }
 
+  calculateHiddenClueCompletionRate(): number {
+    const allHiddenClues = this.clues.filter(c => c.isEndingClue);
+    if (allHiddenClues.length === 0) return 1.0;
+    
+    const collected = allHiddenClues.filter(c => 
+      this.state.endingEvaluation.hiddenCluesCollected.includes(c.id) ||
+      this.state.collectedClues.includes(c.id)
+    );
+    
+    return collected.length / allHiddenClues.length;
+  }
+
+  calculateSideQuestCompletionRate(): number {
+    const allSideQuests = this.visitorQuests.filter(q => q.priority === 'rare' || q.priority === 'epic');
+    if (allSideQuests.length === 0) return 1.0;
+    
+    const completed = allSideQuests.filter(q => 
+      this.state.visitorQuests.completedQuests.includes(q.id)
+    );
+    
+    return completed.length / allSideQuests.length;
+  }
+
+  calculateMechanismQualityScore(mechanismId: string): number {
+    const record = this.getMechanismSolveRecord(mechanismId);
+    if (!record) return 0;
+    
+    let score = 100;
+    
+    if (record.attempts > 1) {
+      score -= (record.attempts - 1) * 10;
+    }
+    
+    if (record.hintsUsed > 0) {
+      score -= record.hintsUsed * 15;
+    }
+    
+    if (record.solveTime > 60000) {
+      score -= Math.floor((record.solveTime - 60000) / 30000) * 5;
+    }
+    
+    return Math.max(0, score);
+  }
+
+  calculateOverallMechanismQuality(): number {
+    const solvedMechanisms = this.state.solvedMechanisms;
+    if (solvedMechanisms.length === 0) return 100;
+    
+    const totalScore = solvedMechanisms.reduce((sum, mechId) => {
+      return sum + this.calculateMechanismQualityScore(mechId);
+    }, 0);
+    
+    return totalScore / solvedMechanisms.length;
+  }
+
+  getOptimalMechanismRate(): number {
+    const solvedMechanisms = this.state.solvedMechanisms;
+    if (solvedMechanisms.length === 0) return 0;
+    
+    return this.state.endingEvaluation.optimalMechanisms.length / solvedMechanisms.length;
+  }
+
+  calculateEndingScore(ending: Ending): { totalScore: number; maxScore: number; conditions: EndingConditionSatisfaction[] } {
+    const conditions: EndingConditionSatisfaction[] = [];
+    const weights = ending.unlockConditions.weights || {
+      cluesWeight: 25,
+      choicesWeight: 25,
+      hiddenCluesWeight: 20,
+      sideQuestsWeight: 15,
+      mechanismQualityWeight: 10,
+      memoryCompleteWeight: 5
+    };
+
+    const { requiredClues, requiredChoices, requiredMemoryComplete, 
+            requiredHiddenClues, requiredSideQuests, requiredMechanismQuality,
+            minHiddenClueCompletionRate, minSideQuestCompletionRate,
+            excludedChoices, requiredDualHallProgress, requiredAuthenticityProgress,
+            requiredNightPatrolProgress } = ending.unlockConditions;
+
+    if (requiredClues && requiredClues.length > 0) {
+      const collected = requiredClues.filter(id => this.state.collectedClues.includes(id));
+      const rate = collected.length / requiredClues.length;
+      const satisfied = rate >= 1;
+      conditions.push({
+        type: 'clues',
+        description: '收集必需线索',
+        satisfied,
+        currentValue: collected.length,
+        requiredValue: requiredClues.length,
+        weight: weights.cluesWeight,
+        score: rate * weights.cluesWeight
+      });
+    }
+
+    if (requiredChoices && requiredChoices.length > 0) {
+      const madeChoiceIds = Object.values(this.state.memoryCorridor.madeChoices);
+      const correct = requiredChoices.filter(id => madeChoiceIds.includes(id));
+      const rate = correct.length / requiredChoices.length;
+      const satisfied = rate >= 1;
+      conditions.push({
+        type: 'choices',
+        description: '做出正确选择',
+        satisfied,
+        currentValue: correct.length,
+        requiredValue: requiredChoices.length,
+        weight: weights.choicesWeight,
+        score: rate * weights.choicesWeight
+      });
+    }
+
+    if (excludedChoices && excludedChoices.length > 0) {
+      const madeChoiceIds = Object.values(this.state.memoryCorridor.madeChoices);
+      const badChoices = excludedChoices.filter(id => madeChoiceIds.includes(id));
+      const satisfied = badChoices.length === 0;
+      const penalty = badChoices.length * 20;
+      conditions.push({
+        type: 'excluded_choices',
+        description: '避免错误选择',
+        satisfied,
+        currentValue: badChoices.length,
+        requiredValue: 0,
+        weight: 20,
+        score: satisfied ? 20 : Math.max(0, 20 - penalty)
+      });
+    }
+
+    if (requiredMemoryComplete !== undefined) {
+      const satisfied = this.state.memoryCorridor.isMemoryComplete === requiredMemoryComplete;
+      conditions.push({
+        type: 'memory_complete',
+        description: '完成记忆回廊',
+        satisfied,
+        currentValue: this.state.memoryCorridor.isMemoryComplete ? 1 : 0,
+        requiredValue: requiredMemoryComplete ? 1 : 0,
+        weight: weights.memoryCompleteWeight,
+        score: satisfied ? weights.memoryCompleteWeight : 0
+      });
+    }
+
+    if (requiredHiddenClues && requiredHiddenClues.length > 0) {
+      const collected = requiredHiddenClues.filter(id => 
+        this.state.endingEvaluation.hiddenCluesCollected.includes(id) ||
+        this.state.collectedClues.includes(id)
+      );
+      const rate = collected.length / requiredHiddenClues.length;
+      const satisfied = rate >= 1;
+      conditions.push({
+        type: 'hidden_clues',
+        description: '发现隐藏线索',
+        satisfied,
+        currentValue: collected.length,
+        requiredValue: requiredHiddenClues.length,
+        weight: weights.hiddenCluesWeight,
+        score: rate * weights.hiddenCluesWeight
+      });
+    }
+
+    if (minHiddenClueCompletionRate !== undefined) {
+      const currentRate = this.calculateHiddenClueCompletionRate();
+      const satisfied = currentRate >= minHiddenClueCompletionRate;
+      conditions.push({
+        type: 'hidden_clue_rate',
+        description: '隐藏线索完成率',
+        satisfied,
+        currentValue: Math.round(currentRate * 100),
+        requiredValue: Math.round(minHiddenClueCompletionRate * 100),
+        weight: weights.hiddenCluesWeight,
+        score: Math.min(1, currentRate / minHiddenClueCompletionRate) * weights.hiddenCluesWeight
+      });
+    }
+
+    if (requiredSideQuests && requiredSideQuests.length > 0) {
+      const completed = requiredSideQuests.filter(id => 
+        this.state.visitorQuests.completedQuests.includes(id)
+      );
+      const rate = completed.length / requiredSideQuests.length;
+      const satisfied = rate >= 1;
+      conditions.push({
+        type: 'side_quests',
+        description: '完成支线任务',
+        satisfied,
+        currentValue: completed.length,
+        requiredValue: requiredSideQuests.length,
+        weight: weights.sideQuestsWeight,
+        score: rate * weights.sideQuestsWeight
+      });
+    }
+
+    if (minSideQuestCompletionRate !== undefined) {
+      const currentRate = this.calculateSideQuestCompletionRate();
+      const satisfied = currentRate >= minSideQuestCompletionRate;
+      conditions.push({
+        type: 'side_quest_rate',
+        description: '支线任务完成率',
+        satisfied,
+        currentValue: Math.round(currentRate * 100),
+        requiredValue: Math.round(minSideQuestCompletionRate * 100),
+        weight: weights.sideQuestsWeight,
+        score: Math.min(1, currentRate / minSideQuestCompletionRate) * weights.sideQuestsWeight
+      });
+    }
+
+    if (requiredMechanismQuality && requiredMechanismQuality.length > 0) {
+      let totalMechScore = 0;
+      let maxMechScore = 0;
+      
+      requiredMechanismQuality.forEach(req => {
+        const qualityScore = this.calculateMechanismQualityScore(req.mechanismId);
+        let satisfied = true;
+        
+        if (req.maxAttempts !== undefined) {
+          const record = this.getMechanismSolveRecord(req.mechanismId);
+          if (record && record.attempts > req.maxAttempts) satisfied = false;
+        }
+        if (req.maxHintsUsed !== undefined) {
+          const record = this.getMechanismSolveRecord(req.mechanismId);
+          if (record && record.hintsUsed > req.maxHintsUsed) satisfied = false;
+        }
+        if (req.minOptimalRate !== undefined) {
+          const optimalRate = this.getOptimalMechanismRate();
+          if (optimalRate < req.minOptimalRate) satisfied = false;
+        }
+        
+        totalMechScore += qualityScore * (satisfied ? 1 : 0.5);
+        maxMechScore += 100;
+      });
+      
+      const rate = maxMechScore > 0 ? totalMechScore / maxMechScore : 0;
+      conditions.push({
+        type: 'mechanism_quality',
+        description: '机关解法质量',
+        satisfied: rate >= 0.8,
+        currentValue: Math.round(rate * 100),
+        requiredValue: 80,
+        weight: weights.mechanismQualityWeight,
+        score: rate * weights.mechanismQualityWeight
+      });
+    }
+
+    if (requiredDualHallProgress) {
+      const { minHistoryProgress = 0, minArtProgress = 0 } = requiredDualHallProgress;
+      const historyOk = this.state.dualHall.historyProgress >= minHistoryProgress;
+      const artOk = this.state.dualHall.artProgress >= minArtProgress;
+      const satisfied = historyOk && artOk;
+      const avgProgress = (this.state.dualHall.historyProgress + this.state.dualHall.artProgress) / 2;
+      const minRequired = (minHistoryProgress + minArtProgress) / 2;
+      
+      conditions.push({
+        type: 'dual_hall_progress',
+        description: '双展厅探索进度',
+        satisfied,
+        currentValue: avgProgress,
+        requiredValue: minRequired,
+        weight: 10,
+        score: satisfied ? 10 : Math.min(1, avgProgress / Math.max(1, minRequired)) * 10
+      });
+    }
+
+    if (requiredAuthenticityProgress) {
+      const { minVerifiedRelics = 0, minCorrectVerdicts = 0 } = requiredAuthenticityProgress;
+      const verifiedOk = this.state.authenticity.verifiedRelics.length >= minVerifiedRelics;
+      
+      let correctVerdicts = 0;
+      this.authenticityRelics.forEach(relic => {
+        if (relic.verdict && relic.verdict === (relic.isGenuine ? 'genuine' : 'fake')) {
+          correctVerdicts++;
+        }
+      });
+      const verdictOk = correctVerdicts >= minCorrectVerdicts;
+      const satisfied = verifiedOk && verdictOk;
+      
+      conditions.push({
+        type: 'authenticity_progress',
+        description: '真伪鉴定进度',
+        satisfied,
+        currentValue: this.state.authenticity.verifiedRelics.length,
+        requiredValue: minVerifiedRelics,
+        weight: 10,
+        score: satisfied ? 10 : (this.state.authenticity.verifiedRelics.length / Math.max(1, minVerifiedRelics)) * 10
+      });
+    }
+
+    if (requiredNightPatrolProgress) {
+      const { minEventsResolved = 0, minPowerOutagesCompleted = 0 } = requiredNightPatrolProgress;
+      const eventsOk = this.state.nightPatrol.totalEventsResolved >= minEventsResolved;
+      const outagesOk = this.state.nightPatrol.powerOutage.totalPowerOutages >= minPowerOutagesCompleted;
+      const satisfied = eventsOk && outagesOk;
+      
+      conditions.push({
+        type: 'night_patrol_progress',
+        description: '夜间巡逻进度',
+        satisfied,
+        currentValue: this.state.nightPatrol.totalEventsResolved,
+        requiredValue: minEventsResolved,
+        weight: 10,
+        score: satisfied ? 10 : (this.state.nightPatrol.totalEventsResolved / Math.max(1, minEventsResolved)) * 10
+      });
+    }
+
+    const totalScore = conditions.reduce((sum, c) => sum + c.score, 0);
+    const maxScore = conditions.reduce((sum, c) => sum + c.weight, 0);
+
+    return { totalScore, maxScore, conditions };
+  }
+
   checkEndingUnlockConditions(endingId: string): boolean {
     const ending = this.endings.find(e => e.id === endingId);
     if (!ending) return false;
 
-    const { requiredClues, requiredChoices, requiredMemoryComplete } = ending.unlockConditions;
+    const scoreResult = this.calculateEndingScore(ending);
+    const { minOverallScore } = ending.unlockConditions;
+    
+    const threshold = minOverallScore !== undefined ? minOverallScore : 0.85;
+    const satisfactionRate = scoreResult.maxScore > 0 
+      ? scoreResult.totalScore / scoreResult.maxScore 
+      : 0;
 
-    if (requiredMemoryComplete && !this.state.memoryCorridor.isMemoryComplete) {
-      return false;
+    const allHardConditionsMet = scoreResult.conditions.every(c => c.satisfied);
+    
+    if (minOverallScore !== undefined) {
+      return satisfactionRate >= threshold;
     }
-
-    if (requiredClues && requiredClues.length > 0) {
-      const allCluesCollected = requiredClues.every(id =>
-        this.state.collectedClues.includes(id)
-      );
-      if (!allCluesCollected) return false;
-    }
-
-    if (requiredChoices && requiredChoices.length > 0) {
-      const allChoicesMade = requiredChoices.every(choiceId => {
-        const madeChoiceIds = Object.values(this.state.memoryCorridor.madeChoices);
-        return madeChoiceIds.includes(choiceId);
-      });
-      if (!allChoicesMade) return false;
-    }
-
-    return true;
+    
+    return allHardConditionsMet || satisfactionRate >= threshold;
   }
 
   determineEnding(): Ending | null {
     const chapterEndings = this.endings.filter(e => e.chapterId === 'chapter_6');
     
+    const endingScores: { ending: Ending; score: number; satisfactionRate: number }[] = [];
+    
     for (const ending of chapterEndings) {
-      if (this.checkEndingUnlockConditions(ending.id)) {
-        return { ...ending };
+      const scoreResult = this.calculateEndingScore(ending);
+      const satisfactionRate = scoreResult.maxScore > 0 
+        ? scoreResult.totalScore / scoreResult.maxScore 
+        : 0;
+      
+      endingScores.push({
+        ending,
+        score: scoreResult.totalScore,
+        satisfactionRate
+      });
+    }
+    
+    endingScores.sort((a, b) => b.score - a.score);
+    
+    const typePriority: Record<string, number> = {
+      'true': 4,
+      'good': 3,
+      'neutral': 2,
+      'bad': 1
+    };
+    
+    for (const candidate of endingScores) {
+      if (this.checkEndingUnlockConditions(candidate.ending.id)) {
+        const isBadEnding = candidate.ending.type === 'bad';
+        const badEndingConditions = candidate.ending.unlockConditions.requiredChoices || [];
+        const madeChoiceIds = Object.values(this.state.memoryCorridor.madeChoices);
+        const hasBadChoice = badEndingConditions.some(id => madeChoiceIds.includes(id));
+        
+        if (isBadEnding && hasBadChoice) {
+          return { ...candidate.ending };
+        }
+        
+        if (!isBadEnding) {
+          return { ...candidate.ending };
+        }
       }
     }
     
-    return null;
+    const qualifiedEndings = endingScores.filter(e => e.satisfactionRate >= 0.5);
+    if (qualifiedEndings.length > 0) {
+      qualifiedEndings.sort((a, b) => 
+        (typePriority[b.ending.type] || 0) - (typePriority[a.ending.type] || 0)
+      );
+      return { ...qualifiedEndings[0].ending };
+    }
+    
+    const neutralEnding = chapterEndings.find(e => e.type === 'neutral');
+    return neutralEnding ? { ...neutralEnding } : null;
+  }
+
+  analyzeEndingConditions(endingId: string): EndingAnalysis | null {
+    const ending = this.endings.find(e => e.id === endingId);
+    if (!ending) return null;
+
+    const scoreResult = this.calculateEndingScore(ending);
+    const satisfactionRate = scoreResult.maxScore > 0 
+      ? scoreResult.totalScore / scoreResult.maxScore 
+      : 0;
+
+    const unsatisfiedConditions = scoreResult.conditions.filter(c => !c.satisfied);
+    let hint = '';
+    
+    if (unsatisfiedConditions.length > 0) {
+      const hints: string[] = [];
+      unsatisfiedConditions.forEach(c => {
+        if (c.type === 'clues') {
+          hints.push(`还需要收集 ${c.requiredValue - c.currentValue} 个线索`);
+        } else if (c.type === 'hidden_clues' || c.type === 'hidden_clue_rate') {
+          hints.push('继续探索隐藏区域，发现更多秘密');
+        } else if (c.type === 'choices') {
+          hints.push('在关键选择点做出更符合角色心意的决定');
+        } else if (c.type === 'side_quests' || c.type === 'side_quest_rate') {
+          hints.push('完成更多支线任务可以提升结局评价');
+        } else if (c.type === 'mechanism_quality') {
+          hints.push('尝试以更少的尝试次数和提示来解开机关');
+        } else if (c.type === 'excluded_choices') {
+          hints.push('某些选择可能会导向不好的结局');
+        } else if (c.type === 'dual_hall_progress') {
+          hints.push('平衡历史厅和艺术厅的探索进度');
+        } else if (c.type === 'memory_complete') {
+          hints.push('完成记忆回廊的所有阶段');
+        }
+      });
+      hint = hints.join('；') + '。';
+    } else {
+      hint = '所有条件已满足！';
+    }
+
+    return {
+      endingId: ending.id,
+      endingTitle: ending.title,
+      endingType: ending.type,
+      isUnlocked: ending.unlocked,
+      isAchieved: ending.achieved,
+      totalScore: Math.round(scoreResult.totalScore),
+      maxPossibleScore: scoreResult.maxScore,
+      satisfactionRate: Math.round(satisfactionRate * 100),
+      conditions: scoreResult.conditions,
+      hint
+    };
+  }
+
+  getAllEndingAnalysis(): EndingAnalysis[] {
+    return this.endings
+      .filter(e => e.chapterId === 'chapter_6')
+      .map(e => this.analyzeEndingConditions(e.id))
+      .filter((e): e is EndingAnalysis => e !== null)
+      .sort((a, b) => b.satisfactionRate - a.satisfactionRate);
   }
 
   getBranchChoices(): BranchChoice[] {

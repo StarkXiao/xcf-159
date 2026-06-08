@@ -5,13 +5,44 @@ export const ENDINGS: Ending[] = [
     id: 'ending_true',
     chapterId: 'chapter_6',
     title: '真结局：永恒的记忆',
-    description: '你找到了所有记忆碎片，做出了最符合琥珀心意的选择。真正的结局即将揭晓。',
+    description: '你找到了所有记忆碎片，发现了隐藏的秘密，完成了所有支线，以最优解法解开了所有机关，做出了最符合琥珀心意的选择。真正的结局即将揭晓。',
     storyText: '当你输入"永恒"两个字的那一刻，整个记忆回廊被金色的光芒笼罩。所有的记忆碎片在空中飞舞，最终汇聚成琥珀的身影——从童年到青春，从欢笑到泪水，每一个瞬间都在你眼前闪过。你终于明白了爷爷建造这座博物馆的真正意义：记忆不会因为时间的流逝而消失，爱不会因为生命的终结而褪色。琥珀的故事，你的故事，每一个用心生活的人的故事，都值得被永恒珍藏。而你，成为了这些记忆的守护者。',
     type: 'true',
     unlockConditions: {
       requiredClues: ['clue_cor_1', 'clue_cor_2', 'clue_cor_3', 'clue_cor_4', 'clue_cor_5', 'clue_cor_6', 'clue_cor_7', 'clue_cor_8'],
       requiredChoices: ['choice_study_art', 'choice_remember_forever'],
-      requiredMemoryComplete: true
+      requiredMemoryComplete: true,
+      requiredHiddenClues: ['clue_hidden_1', 'clue_hidden_2', 'clue_hidden_3'],
+      requiredSideQuests: ['quest_rare_1', 'quest_epic_1'],
+      requiredMechanismQuality: [
+        { mechanismId: 'mech_cor_password', maxAttempts: 1, maxHintsUsed: 0 },
+        { mechanismId: 'mech_cor_sort_1', maxAttempts: 2, maxHintsUsed: 1 },
+        { mechanismId: 'mech_cor_final', maxAttempts: 1, maxHintsUsed: 0 }
+      ],
+      minHiddenClueCompletionRate: 0.9,
+      minSideQuestCompletionRate: 0.8,
+      minOverallScore: 0.95,
+      excludedChoices: ['choice_give_up_dream', 'choice_forget_everything'],
+      requiredDualHallProgress: {
+        minHistoryProgress: 80,
+        minArtProgress: 80
+      },
+      requiredAuthenticityProgress: {
+        minVerifiedRelics: 3,
+        minCorrectVerdicts: 3
+      },
+      requiredNightPatrolProgress: {
+        minEventsResolved: 2,
+        minPowerOutagesCompleted: 1
+      },
+      weights: {
+        cluesWeight: 20,
+        choicesWeight: 20,
+        hiddenCluesWeight: 20,
+        sideQuestsWeight: 15,
+        mechanismQualityWeight: 15,
+        memoryCompleteWeight: 10
+      }
     },
     unlocked: false,
     achieved: false,
@@ -22,12 +53,35 @@ export const ENDINGS: Ending[] = [
     id: 'ending_good',
     chapterId: 'chapter_6',
     title: '好结局：传承的心愿',
-    description: '你找到了大部分记忆碎片，做出了正确的选择。虽然略有遗憾，但琥珀的心愿已经达成。',
+    description: '你找到了大部分记忆碎片，发现了一些隐藏线索，完成了主要支线任务，做出了正确的选择。虽然略有遗憾，但琥珀的心愿已经达成。',
     storyText: '金色的光芒缓缓升起，你拼凑出了琥珀大部分的记忆。虽然有一些细节已经模糊，但核心的故事依然清晰：爷爷对琥珀的爱，琥珀对梦想的追求，以及那些温暖的时光。你选择了传承爷爷的心愿，让这座博物馆继续守护着那些珍贵的记忆。琥珀的故事，将被更多人知晓和铭记。',
     type: 'good',
     unlockConditions: {
       requiredClues: ['clue_cor_1', 'clue_cor_2', 'clue_cor_3', 'clue_cor_4', 'clue_cor_6', 'clue_cor_8'],
-      requiredChoices: ['choice_study_art', 'choice_remember_forever']
+      requiredChoices: ['choice_study_art', 'choice_remember_forever'],
+      requiredMemoryComplete: true,
+      requiredHiddenClues: ['clue_hidden_1'],
+      requiredSideQuests: ['quest_rare_1'],
+      requiredMechanismQuality: [
+        { mechanismId: 'mech_cor_password', maxAttempts: 3, maxHintsUsed: 2 },
+        { mechanismId: 'mech_cor_final', maxAttempts: 2, maxHintsUsed: 1 }
+      ],
+      minHiddenClueCompletionRate: 0.5,
+      minSideQuestCompletionRate: 0.5,
+      minOverallScore: 0.75,
+      excludedChoices: ['choice_give_up_dream', 'choice_forget_everything'],
+      requiredDualHallProgress: {
+        minHistoryProgress: 60,
+        minArtProgress: 60
+      },
+      weights: {
+        cluesWeight: 25,
+        choicesWeight: 25,
+        hiddenCluesWeight: 15,
+        sideQuestsWeight: 15,
+        mechanismQualityWeight: 10,
+        memoryCompleteWeight: 10
+      }
     },
     unlocked: false,
     achieved: false,
@@ -38,11 +92,21 @@ export const ENDINGS: Ending[] = [
     id: 'ending_neutral',
     chapterId: 'chapter_6',
     title: '普通结局：时光的过客',
-    description: '你完成了基本的探索，但还有很多记忆等待被发现。琥珀的故事只揭开了一角。',
+    description: '你完成了基本的探索，收集了关键线索，但还有很多记忆等待被发现。琥珀的故事只揭开了一角。',
     storyText: '你完成了记忆回廊的探索，了解了琥珀故事的大致轮廓。但那些更细腻、更深刻的情感，那些藏在细节中的秘密，依然等待着被发现。你站在回廊的尽头，看着那些未被收集的记忆碎片在远处闪烁。也许有一天，你会回来，继续这段未完的旅程。',
     type: 'neutral',
     unlockConditions: {
-      requiredClues: ['clue_cor_1', 'clue_cor_2', 'clue_cor_4', 'clue_cor_6']
+      requiredClues: ['clue_cor_1', 'clue_cor_2', 'clue_cor_4', 'clue_cor_6'],
+      requiredMemoryComplete: false,
+      minOverallScore: 0.4,
+      weights: {
+        cluesWeight: 40,
+        choicesWeight: 20,
+        hiddenCluesWeight: 15,
+        sideQuestsWeight: 10,
+        mechanismQualityWeight: 10,
+        memoryCompleteWeight: 5
+      }
     },
     unlocked: false,
     achieved: false,
@@ -57,7 +121,16 @@ export const ENDINGS: Ending[] = [
     storyText: '当你做出最后那个选择的瞬间，记忆回廊开始崩塌。那些曾经闪耀的记忆碎片一个个化为尘埃，消散在空气中。你试图抓住它们，但一切都太晚了。琥珀的故事，爷爷的爱，那些珍贵的时光，都因为你的选择而永远消失。你站在空荡荡的回廊中，只剩下无尽的悔恨和空虚。',
     type: 'bad',
     unlockConditions: {
-      requiredChoices: ['choice_give_up_dream', 'choice_forget_everything']
+      requiredChoices: ['choice_give_up_dream', 'choice_forget_everything'],
+      minOverallScore: 0.0,
+      weights: {
+        cluesWeight: 10,
+        choicesWeight: 60,
+        hiddenCluesWeight: 5,
+        sideQuestsWeight: 5,
+        mechanismQualityWeight: 10,
+        memoryCompleteWeight: 10
+      }
     },
     unlocked: false,
     achieved: false,

@@ -331,6 +331,89 @@ export interface RestorationState {
 
 export type HallType = 'history' | 'art';
 
+export interface MechanismSolveRecord {
+  mechanismId: string;
+  solvedAt: number;
+  attempts: number;
+  hintsUsed: number;
+  solveTime: number;
+  solutionPath: string[];
+  isOptimal: boolean;
+}
+
+export interface SideQuestProgress {
+  questId: string;
+  completed: boolean;
+  completedAt?: number;
+  choicesMade: string[];
+}
+
+export interface EndingConditionWeights {
+  cluesWeight: number;
+  choicesWeight: number;
+  hiddenCluesWeight: number;
+  sideQuestsWeight: number;
+  mechanismQualityWeight: number;
+  memoryCompleteWeight: number;
+}
+
+export interface EndingUnlockConditions {
+  requiredClues?: string[];
+  requiredChoices?: string[];
+  requiredMemoryComplete?: boolean;
+  requiredHiddenClues?: string[];
+  requiredSideQuests?: string[];
+  requiredMechanismQuality?: {
+    mechanismId: string;
+    minOptimalRate?: number;
+    maxAttempts?: number;
+    maxHintsUsed?: number;
+    minSolveTime?: number;
+  }[];
+  minHiddenClueCompletionRate?: number;
+  minSideQuestCompletionRate?: number;
+  minOverallScore?: number;
+  weights?: EndingConditionWeights;
+  excludedChoices?: string[];
+  requiredDualHallProgress?: {
+    minHistoryProgress?: number;
+    minArtProgress?: number;
+  };
+  requiredAuthenticityProgress?: {
+    minVerifiedRelics?: number;
+    minCorrectVerdicts?: number;
+  };
+  requiredNightPatrolProgress?: {
+    minEventsResolved?: number;
+    minPowerOutagesCompleted?: number;
+  };
+}
+
+export interface EndingConditionSatisfaction {
+  type: string;
+  description: string;
+  targetId?: string;
+  targetName?: string;
+  satisfied: boolean;
+  currentValue: number;
+  requiredValue: number;
+  weight: number;
+  score: number;
+}
+
+export interface EndingAnalysis {
+  endingId: string;
+  endingTitle: string;
+  endingType: 'good' | 'neutral' | 'bad' | 'true';
+  isUnlocked: boolean;
+  isAchieved: boolean;
+  totalScore: number;
+  maxPossibleScore: number;
+  satisfactionRate: number;
+  conditions: EndingConditionSatisfaction[];
+  hint: string;
+}
+
 export interface Ending {
   id: string;
   chapterId: string;
@@ -338,11 +421,7 @@ export interface Ending {
   description: string;
   storyText: string;
   type: 'good' | 'neutral' | 'bad' | 'true';
-  unlockConditions: {
-    requiredClues?: string[];
-    requiredChoices?: string[];
-    requiredMemoryComplete?: boolean;
-  };
+  unlockConditions: EndingUnlockConditions;
   unlocked: boolean;
   achieved: boolean;
   icon: string;
@@ -867,6 +946,16 @@ export interface BreakpointState {
   autoSave: boolean;
 }
 
+export interface EndingEvaluationState {
+  mechanismSolveRecords: MechanismSolveRecord[];
+  sideQuestProgress: SideQuestProgress[];
+  hiddenCluesCollected: string[];
+  mechanismAttemptCounts: Record<string, number>;
+  mechanismHintCounts: Record<string, number>;
+  mechanismStartTime: Record<string, number>;
+  optimalMechanisms: string[];
+}
+
 export interface GameState {
   currentChapter: string;
   currentExhibition: string;
@@ -885,6 +974,7 @@ export interface GameState {
   memoryCorridor: MemoryCorridorState;
   memoryPuzzleRecovery: MemoryPuzzleRecoveryState;
   breakpoint: BreakpointState;
+  endingEvaluation: EndingEvaluationState;
 }
 
 export interface MemorySortSubmitResult {
