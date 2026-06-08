@@ -8,6 +8,8 @@ import { store } from '../game/Store';
 
 export class StartScene extends Scene {
   private startButton: PIXI.Graphics | null = null;
+  private continueButton: PIXI.Graphics | null = null;
+  private continueButtonText: PIXI.Text | null = null;
   private settingsButton: PIXI.Graphics | null = null;
   private settingsPanel: PIXI.Container | null = null;
   private isSettingsOpen: boolean = false;
@@ -164,7 +166,7 @@ export class StartScene extends Scene {
     this.startButton.drawRoundedRect(0, 0, 300, 80, 20);
     this.startButton.endFill();
 
-    const startText = new PIXI.Text('开始游戏', {
+    const startText = new PIXI.Text('开始新游戏', {
       fontFamily: GAME_CONFIG.FONTS.BODY,
       fontSize: 32,
       fill: GAME_CONFIG.COLORS.DARK_BROWN
@@ -191,10 +193,49 @@ export class StartScene extends Scene {
     this.startButton.on('pointerdown', () => {
       audioModule.playSFX('sfx_click');
       audioModule.playSFX('sfx_unlock');
-      this.startGame();
+      this.startNewGame();
     });
 
     this.addChild(this.startButton);
+
+    this.continueButton = new PIXI.Graphics();
+    this.continueButton.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.9);
+    this.continueButton.lineStyle(4, GAME_CONFIG.COLORS.AMBER, 1);
+    this.continueButton.drawRoundedRect(0, 0, 300, 80, 20);
+    this.continueButton.endFill();
+
+    this.continueButtonText = new PIXI.Text('继续游戏', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 32,
+      fill: GAME_CONFIG.COLORS.CREAM
+    });
+    this.continueButtonText.anchor.set(0.5);
+    this.continueButtonText.x = 150;
+    this.continueButtonText.y = 40;
+    this.continueButton.addChild(this.continueButtonText);
+
+    this.continueButton.x = (GAME_CONFIG.DESIGN_WIDTH - 300) / 2;
+    this.continueButton.y = 850;
+    this.continueButton.eventMode = 'static';
+    this.continueButton.cursor = 'pointer';
+    this.continueButton.visible = false;
+
+    this.continueButton.on('pointerover', () => {
+      Animator.tween(this.continueButton!.scale, { x: 1.05, y: 1.05 }, 150);
+      audioModule.playSFX('sfx_click');
+    });
+
+    this.continueButton.on('pointerout', () => {
+      Animator.tween(this.continueButton!.scale, { x: 1, y: 1 }, 150);
+    });
+
+    this.continueButton.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      audioModule.playSFX('sfx_unlock');
+      this.continueGame();
+    });
+
+    this.addChild(this.continueButton);
 
     this.settingsButton = new PIXI.Graphics();
     this.settingsButton.beginFill(0x000000, 0.6);
@@ -229,7 +270,7 @@ export class StartScene extends Scene {
     });
     hint.anchor.set(0.5);
     hint.x = GAME_CONFIG.DESIGN_WIDTH / 2;
-    hint.y = 900;
+    hint.y = 970;
     this.addChild(hint);
   }
 
@@ -430,24 +471,95 @@ export class StartScene extends Scene {
     );
   }
 
-  private startGame(): void {
-    if (this.startButton) {
+  private startNewGame(): void {
+    if (this.startButton && this.continueButton) {
       Animator.animate(
         500,
         (progress) => {
           this.startButton!.alpha = 1 - progress;
           this.startButton!.scale.set(1 + progress);
+          this.continueButton!.alpha = 1 - progress;
+          this.continueButton!.scale.set(1 + progress);
         },
         () => {
+          store.resetGame();
           eventBus.emit('scene:change', { scene: 'game' });
         }
       );
     }
   }
 
+  private continueGame(): void {
+    if (this.startButton && this.continueButton) {
+      Animator.animate(
+        500,
+        (progress) => {
+          this.startButton!.alpha = 1 - progress;
+          this.startButton!.scale.set(1 + progress);
+          this.continueButton!.alpha = 1 - progress;
+          this.continueButton!.scale.set(1 + progress);
+        },
+        () => {
+          store.resumeFromBreakpoint();
+          eventBus.emit('scene:change', { scene: 'game' });
+        }
+      );
+    }
+  }
+
+  private formatPlayTime(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    if (hours > 0) {
+      return `${hours}小时${minutes}分钟`;
+    }
+    return `${minutes}分钟`;
+  }
+
+  private formatSaveTime(timestamp: number): string {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins}分钟前`;
+    
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}小时前`;
+    
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}天前`;
+    
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+
+  private updateContinueButton(): void {
+    if (!this.continueButton || !this.continueButtonText) return;
+
+    const hasBreakpoint = store.hasBreakpoint();
+    this.continueButton.visible = hasBreakpoint;
+
+    if (hasBreakpoint) {
+      const breakpoint = store.getBreakpoint();
+      if (breakpoint) {
+        const playTime = this.formatPlayTime(breakpoint.playTime);
+        const saveTime = this.formatSaveTime(breakpoint.savedAt);
+        const chapter = store.getChapterById(breakpoint.currentChapter);
+        const exhibition = store.getExhibitionById(breakpoint.currentExhibition);
+        const chapterTitle = chapter?.title || '未知章节';
+        const exhibitionName = exhibition?.name || '未知展厅';
+        this.continueButtonText.text = `继续游戏\n${chapterTitle} · ${exhibitionName}\n游戏时长: ${playTime} · ${saveTime}`;
+        this.continueButtonText.style.fontSize = 18;
+      }
+    }
+  }
+
   onEnter(): void {
     super.onEnter();
     audioModule.playBGM('bgm_main');
+    this.updateContinueButton();
   }
 
   onExit(): void {

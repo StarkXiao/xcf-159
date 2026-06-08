@@ -63,5 +63,6 @@ export const GAME_CONFIG = {
     PERFECT_BONUS: 100,
     SPEED_BONUS_THRESHOLD: 60000,
     SPEED_BONUS_MAX: 100
-  } as const
+  } as const,
+  AUTO_SAVE_INTERVAL: 30000
 } as const;

@@ -506,25 +506,6 @@ export interface ReadingRoomState {
   favoriteClues: string[];
 }
 
-export interface GameState {
-  currentChapter: string;
-  currentExhibition: string;
-  collectedClues: string[];
-  solvedMechanisms: string[];
-  unlockedExhibitions: string[];
-  investigatedHotspots: string[];
-  settings: GameSettings;
-  archive: ArchiveState;
-  nightPatrol: NightPatrolState;
-  restoration: RestorationState;
-  dualHall: DualHallState;
-  visitorQuests: VisitorQuestState;
-  readingRoom: ReadingRoomState;
-  authenticity: AuthenticityState;
-  memoryCorridor: MemoryCorridorState;
-  memoryPuzzleRecovery: MemoryPuzzleRecoveryState;
-}
-
 export interface MemorySortData {
   phase: number;
   fragments: Clue[];
@@ -857,6 +838,53 @@ export interface MemorySortSkipResult {
 
 export interface MemoryPuzzleRecoveryState {
   [puzzleId: string]: MemoryPuzzleState;
+}
+
+export interface NarrativeProgress {
+  triggeredStoryNodes: string[];
+  completedKeyPoints: string[];
+  playedRecordings: string[];
+  unlockedTimelineEvents: string[];
+  madeBranchChoices: Record<string, string>;
+  viewedCharacters: string[];
+  viewedEvents: string[];
+}
+
+export interface MechanismProgress {
+  solvedMechanisms: string[];
+  activeMechanismId: string | null;
+  mechanismInputState: Record<string, string>;
+  linkedMechanismProgress: Record<string, number>;
+}
+
+export interface BreakpointState {
+  currentExhibition: string;
+  currentChapter: string;
+  mechanismProgress: MechanismProgress;
+  narrativeProgress: NarrativeProgress;
+  savedAt: number;
+  playTime: number;
+  autoSave: boolean;
+}
+
+export interface GameState {
+  currentChapter: string;
+  currentExhibition: string;
+  collectedClues: string[];
+  solvedMechanisms: string[];
+  unlockedExhibitions: string[];
+  investigatedHotspots: string[];
+  settings: GameSettings;
+  archive: ArchiveState;
+  nightPatrol: NightPatrolState;
+  restoration: RestorationState;
+  dualHall: DualHallState;
+  visitorQuests: VisitorQuestState;
+  readingRoom: ReadingRoomState;
+  authenticity: AuthenticityState;
+  memoryCorridor: MemoryCorridorState;
+  memoryPuzzleRecovery: MemoryPuzzleRecoveryState;
+  breakpoint: BreakpointState;
 }
 
 export interface MemorySortSubmitResult {

@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose, ChapterKeyPoint, ChapterIncompleteCondition, MemoryFragmentGap, ChapterProgressAnalysis, ChapterKeyPointReview, MemoryPuzzleState, MemoryPuzzleAttempt, MemoryPuzzleScoreResult, MemorySortHint, MemorySortSkipResult } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose, ChapterKeyPoint, ChapterIncompleteCondition, MemoryFragmentGap, ChapterProgressAnalysis, ChapterKeyPointReview, MemoryPuzzleState, MemoryPuzzleAttempt, MemoryPuzzleScoreResult, MemorySortHint, MemorySortSkipResult, BreakpointState, MechanismProgress, NarrativeProgress } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -36,6 +36,10 @@ class Store {
   private powerOutageEvents: PowerOutageEvent[];
   private chapterStartTime: number = Date.now();
   private newlyUnlockedExhibitions: string[] = [];
+  private gameStartTime: number = Date.now();
+  private autoSaveTimer: number | null = null;
+  private activeMechanismId: string | null = null;
+  private mechanismInputState: Record<string, string> = {};
 
   constructor() {
     const savedState = this.loadFromStorage();
@@ -156,6 +160,29 @@ class Store {
       currentEnding: null
     };
 
+    const defaultBreakpoint: BreakpointState = {
+      currentExhibition: 'exhibition_1',
+      currentChapter: 'chapter_1',
+      mechanismProgress: {
+        solvedMechanisms: [],
+        activeMechanismId: null,
+        mechanismInputState: {},
+        linkedMechanismProgress: {}
+      },
+      narrativeProgress: {
+        triggeredStoryNodes: [],
+        completedKeyPoints: [],
+        playedRecordings: [],
+        unlockedTimelineEvents: [],
+        madeBranchChoices: {},
+        viewedCharacters: [],
+        viewedEvents: []
+      },
+      savedAt: Date.now(),
+      playTime: 0,
+      autoSave: false
+    };
+
     this.state = savedState || {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -177,7 +204,8 @@ class Store {
       readingRoom: defaultReadingRoom,
       authenticity: defaultAuthenticity,
       memoryCorridor: defaultMemoryCorridor,
-      memoryPuzzleRecovery: {}
+      memoryPuzzleRecovery: {},
+      breakpoint: defaultBreakpoint
     };
 
     if (!this.state.archive) {
@@ -216,7 +244,16 @@ class Store {
       this.state.memoryPuzzleRecovery = {};
     }
 
+    if (!this.state.breakpoint) {
+      this.state.breakpoint = defaultBreakpoint;
+    }
+
+    if (savedState && savedState.breakpoint) {
+      this.gameStartTime = Date.now() - savedState.breakpoint.playTime;
+    }
+
     this.applyStateToData();
+    this.startAutoSave();
 
     eventBus.on('chapter:enter', (data: { chapterId: string }) => {
       const recording = this.recordings.find(r => r.id === `rec_${data.chapterId}_unlock`);
@@ -540,6 +577,7 @@ class Store {
 
     eventBus.emit('clue:collect', { clueId });
     this.saveToStorage();
+    this.saveBreakpoint(false);
     return true;
   }
 
@@ -656,6 +694,7 @@ class Store {
 
     eventBus.emit('mechanism:solve', { mechanismId, reward: mech.reward });
     this.saveToStorage();
+    this.saveBreakpoint(false);
     return true;
   }
 
@@ -690,6 +729,7 @@ class Store {
 
     eventBus.emit('exhibition:enter', { exhibitionId });
     this.saveToStorage();
+    this.saveBreakpoint(false);
     return true;
   }
 
@@ -991,9 +1031,35 @@ class Store {
         isMemoryComplete: false,
         currentEnding: null
       },
-      memoryPuzzleRecovery: {}
+      memoryPuzzleRecovery: {},
+      breakpoint: {
+        currentExhibition: 'exhibition_1',
+        currentChapter: 'chapter_1',
+        mechanismProgress: {
+          solvedMechanisms: [],
+          activeMechanismId: null,
+          mechanismInputState: {},
+          linkedMechanismProgress: {}
+        },
+        narrativeProgress: {
+          triggeredStoryNodes: [],
+          completedKeyPoints: [],
+          playedRecordings: [],
+          unlockedTimelineEvents: [],
+          madeBranchChoices: {},
+          viewedCharacters: [],
+          viewedEvents: []
+        },
+        savedAt: Date.now(),
+        playTime: 0,
+        autoSave: false
+      }
     };
+    this.gameStartTime = Date.now();
+    this.activeMechanismId = null;
+    this.mechanismInputState = {};
     this.applyStateToData();
+    this.saveBreakpoint(false);
     eventBus.emit('game:reset');
   }
 
@@ -1002,6 +1068,136 @@ class Store {
     for (let i = 0; i < fragments.length; i++) {
       if (fragments[i].memoryOrder !== i + 1) return false;
     }
+    return true;
+  }
+
+  private startAutoSave(): void {
+    this.stopAutoSave();
+    this.autoSaveTimer = window.setInterval(() => {
+      this.saveBreakpoint(true);
+    }, GAME_CONFIG.AUTO_SAVE_INTERVAL || 30000);
+  }
+
+  private stopAutoSave(): void {
+    if (this.autoSaveTimer !== null) {
+      clearInterval(this.autoSaveTimer);
+      this.autoSaveTimer = null;
+    }
+  }
+
+  saveBreakpoint(autoSave: boolean = false): boolean {
+    try {
+      const playTime = Date.now() - this.gameStartTime;
+
+      const narrativeProgress: NarrativeProgress = {
+        triggeredStoryNodes: [...this.state.breakpoint.narrativeProgress.triggeredStoryNodes],
+        completedKeyPoints: [...this.state.breakpoint.narrativeProgress.completedKeyPoints],
+        playedRecordings: [...this.state.archive.playedRecordings],
+        unlockedTimelineEvents: [...this.state.readingRoom.unlockedEvents],
+        madeBranchChoices: { ...this.state.memoryCorridor.madeChoices },
+        viewedCharacters: [...this.state.readingRoom.viewedCharacters],
+        viewedEvents: [...this.state.readingRoom.viewedEvents]
+      };
+
+      const mechanismProgress: MechanismProgress = {
+        solvedMechanisms: [...this.state.solvedMechanisms],
+        activeMechanismId: this.activeMechanismId,
+        mechanismInputState: { ...this.mechanismInputState },
+        linkedMechanismProgress: { ...this.state.dualHall.linkedMechanismProgress }
+      };
+
+      const breakpoint: BreakpointState = {
+        currentExhibition: this.state.currentExhibition,
+        currentChapter: this.state.currentChapter,
+        mechanismProgress,
+        narrativeProgress,
+        savedAt: Date.now(),
+        playTime,
+        autoSave
+      };
+
+      this.state.breakpoint = breakpoint;
+      this.saveToStorage();
+      eventBus.emit('breakpoint:saved', { breakpoint, autoSave });
+      return true;
+    } catch (e) {
+      console.error('Failed to save breakpoint:', e);
+      return false;
+    }
+  }
+
+  hasBreakpoint(): boolean {
+    return this.state.breakpoint && 
+           this.state.breakpoint.playTime > 0 &&
+           this.state.breakpoint.savedAt > 0;
+  }
+
+  getBreakpoint(): BreakpointState | null {
+    if (!this.hasBreakpoint()) return null;
+    return { ...this.state.breakpoint };
+  }
+
+  getPlayTime(): number {
+    return Date.now() - this.gameStartTime;
+  }
+
+  setActiveMechanism(mechanismId: string | null): void {
+    this.activeMechanismId = mechanismId;
+    if (mechanismId) {
+      this.saveBreakpoint(false);
+    }
+  }
+
+  setMechanismInput(mechanismId: string, input: string): void {
+    this.mechanismInputState[mechanismId] = input;
+  }
+
+  getMechanismInput(mechanismId: string): string {
+    return this.mechanismInputState[mechanismId] || '';
+  }
+
+  clearMechanismInput(mechanismId: string): void {
+    delete this.mechanismInputState[mechanismId];
+  }
+
+  completeKeyPoint(keyPointId: string): boolean {
+    if (this.state.breakpoint.narrativeProgress.completedKeyPoints.includes(keyPointId)) {
+      return false;
+    }
+    this.state.breakpoint.narrativeProgress.completedKeyPoints.push(keyPointId);
+    this.saveBreakpoint(false);
+    eventBus.emit('keypoint:complete', { keyPointId });
+    return true;
+  }
+
+  isKeyPointCompleted(keyPointId: string): boolean {
+    return this.state.breakpoint.narrativeProgress.completedKeyPoints.includes(keyPointId);
+  }
+
+  triggerStoryNode(storyNode: string): boolean {
+    if (this.state.breakpoint.narrativeProgress.triggeredStoryNodes.includes(storyNode)) {
+      return false;
+    }
+    this.state.breakpoint.narrativeProgress.triggeredStoryNodes.push(storyNode);
+    this.saveBreakpoint(false);
+    eventBus.emit('story:trigger', { storyNode });
+    return true;
+  }
+
+  hasTriggeredStoryNode(storyNode: string): boolean {
+    return this.state.breakpoint.narrativeProgress.triggeredStoryNodes.includes(storyNode);
+  }
+
+  resumeFromBreakpoint(): boolean {
+    if (!this.hasBreakpoint()) return false;
+
+    const breakpoint = this.state.breakpoint;
+    
+    this.gameStartTime = Date.now() - breakpoint.playTime;
+    this.activeMechanismId = breakpoint.mechanismProgress.activeMechanismId;
+    this.mechanismInputState = { ...breakpoint.mechanismProgress.mechanismInputState };
+
+    eventBus.emit('breakpoint:resume', { breakpoint });
     return true;
   }
 

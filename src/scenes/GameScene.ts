@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { Scene } from './Scene';
 import { GAME_CONFIG } from '../game/config';
 import { eventBus } from '../game/EventBus';
+import { store } from '../game/Store';
 import { Animator } from '../utils/Animator';
 import { ExhibitionModule } from '../modules/ExhibitionModule';
 import { ClueModule } from '../modules/ClueModule';
@@ -137,10 +138,23 @@ export class GameScene extends Scene {
           if (this.transitionOverlay) {
             this.transitionOverlay.eventMode = 'auto';
           }
+          this.restoreFromBreakpoint();
         },
         Animator.easeOutCubic
       );
     }
+  }
+
+  private restoreFromBreakpoint(): void {
+    const breakpoint = store.getBreakpoint();
+    if (!breakpoint) return;
+
+    const currentExhibition = store.getCurrentExhibition();
+    if (breakpoint.currentExhibition && currentExhibition?.id !== breakpoint.currentExhibition) {
+      store.setCurrentExhibition(breakpoint.currentExhibition);
+    }
+
+    eventBus.emit('breakpoint:restored', { breakpoint });
   }
 
   onExit(): void {
