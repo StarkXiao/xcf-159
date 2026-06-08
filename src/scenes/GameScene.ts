@@ -19,6 +19,7 @@ import { MemorySortModule } from '../modules/MemorySortModule';
 import { BranchChoiceModule } from '../modules/BranchChoiceModule';
 import { EndingModule } from '../modules/EndingModule';
 import { FinalReviewModule } from '../modules/FinalReviewModule';
+import { HintModule } from '../modules/HintModule';
 import { audioModule } from '../modules/AudioModule';
 
 export class GameScene extends Scene {
@@ -37,6 +38,7 @@ export class GameScene extends Scene {
   private branchChoiceModule: BranchChoiceModule | null = null;
   private endingModule: EndingModule | null = null;
   private finalReviewModule: FinalReviewModule | null = null;
+  private hintModule: HintModule | null = null;
 
   private transitionOverlay: PIXI.Graphics | null = null;
   private reviewButton: PIXI.Graphics | null = null;
@@ -61,6 +63,7 @@ export class GameScene extends Scene {
     this.branchChoiceModule = new BranchChoiceModule(this);
     this.endingModule = new EndingModule(this);
     this.finalReviewModule = new FinalReviewModule(this);
+    this.hintModule = new HintModule(this);
 
     this.createReviewButton();
 
@@ -270,6 +273,7 @@ export class GameScene extends Scene {
     if (this.branchChoiceModule) this.branchChoiceModule.destroy();
     if (this.endingModule) this.endingModule.destroy();
     if (this.finalReviewModule) this.finalReviewModule.destroy();
+    if (this.hintModule) this.hintModule.destroy();
     if (this.reviewButton) this.reviewButton.destroy();
     if (this.transitionOverlay) this.transitionOverlay.destroy();
   }

@@ -1,4 +1,4 @@
-import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose, ChapterKeyPoint, ChapterIncompleteCondition, MemoryFragmentGap, ChapterProgressAnalysis, ChapterKeyPointReview, MemoryPuzzleState, MemoryPuzzleAttempt, MemoryPuzzleScoreResult, MemorySortHint, MemorySortSkipResult, BreakpointState, MechanismProgress, NarrativeProgress, MechanismSolveRecord, SideQuestProgress, EndingEvaluationState, EndingUnlockConditions, EndingConditionWeights, EndingAnalysis, EndingConditionSatisfaction } from './types';
+import { GameState, GameSettings, Clue, Exhibition, Chapter, Mechanism, AudioRecording, ArchiveState, ArchiveEntry, NightEvent, ExhibitionMode, NightPatrolState, Relic, RestorationMaterial, RestorationState, HallType, DualHallState, VisitorQuest, VisitorQuestState, ChapterEvaluation, QuestHistoryEntry, Character, TimelineEvent, ReadingRoomState, AuthenticityRelic, AuthenticityState, AuthenticityReward, Ending, BranchChoice, MemoryCorridorState, MechanismInteractionResult, MemorySortSubmitResult, BranchChoiceSubmitResult, PowerOutageEvent, HiddenHotspot, TimedMechanism, LightingState, PowerOutagePhase, PowerOutageState, FinalReviewClueSummary, FinalReviewMechanismSummary, FinalReviewChoiceSummary, FinalReviewEndingCondition, FinalReviewData, MechanismPurpose, ChapterKeyPoint, ChapterIncompleteCondition, MemoryFragmentGap, ChapterProgressAnalysis, ChapterKeyPointReview, MemoryPuzzleState, MemoryPuzzleAttempt, MemoryPuzzleScoreResult, MemorySortHint, MemorySortSkipResult, BreakpointState, MechanismProgress, NarrativeProgress, MechanismSolveRecord, SideQuestProgress, EndingEvaluationState, EndingAnalysis, EndingConditionSatisfaction, HintState, HintContent, HintGenerationRequest, HintContextType, HintUrgencyLevel, HintDetailLevel, HintHistoryEntry } from './types';
 import { CLUES } from './data/clues';
 import { EXHIBITIONS, CHAPTERS, MECHANISMS } from './data/chapters';
 import { RECORDINGS } from './data/recordings';
@@ -193,6 +193,27 @@ class Store {
       optimalMechanisms: []
     };
 
+    const defaultHints: HintState = {
+      activeHintId: null,
+      displayedHints: [],
+      dismissedHints: [],
+      hintHistory: [],
+      autoHintEnabled: true,
+      hintFrequency: 'normal',
+      contextTracking: {
+        currentMechanismId: null,
+        currentMemoryPuzzleId: null,
+        mechanismStartTime: {},
+        mechanismWrongAttempts: {},
+        memoryPuzzleStartTime: {},
+        memoryPuzzleWrongAttempts: {},
+        explorationStartTime: Date.now(),
+        lastInteractionTime: Date.now(),
+        lastHintTime: 0,
+        currentChapterPhase: 1
+      }
+    };
+
     this.state = savedState || {
       currentChapter: 'chapter_1',
       currentExhibition: 'exhibition_1',
@@ -216,7 +237,8 @@ class Store {
       memoryCorridor: defaultMemoryCorridor,
       memoryPuzzleRecovery: {},
       breakpoint: defaultBreakpoint,
-      endingEvaluation: defaultEndingEvaluation
+      endingEvaluation: defaultEndingEvaluation,
+      hints: defaultHints
     };
 
     if (!this.state.archive) {
@@ -261,6 +283,10 @@ class Store {
 
     if (!this.state.endingEvaluation) {
       this.state.endingEvaluation = defaultEndingEvaluation;
+    }
+
+    if (!this.state.hints) {
+      this.state.hints = defaultHints;
     }
 
     if (savedState && savedState.breakpoint) {
@@ -1143,6 +1169,26 @@ class Store {
         mechanismHintCounts: {},
         mechanismStartTime: {},
         optimalMechanisms: []
+      },
+      hints: {
+        activeHintId: null,
+        displayedHints: [],
+        dismissedHints: [],
+        hintHistory: [],
+        autoHintEnabled: true,
+        hintFrequency: 'normal',
+        contextTracking: {
+          currentMechanismId: null,
+          currentMemoryPuzzleId: null,
+          mechanismStartTime: {},
+          mechanismWrongAttempts: {},
+          memoryPuzzleStartTime: {},
+          memoryPuzzleWrongAttempts: {},
+          explorationStartTime: Date.now(),
+          lastInteractionTime: Date.now(),
+          lastHintTime: 0,
+          currentChapterPhase: 1
+        }
       }
     };
     this.gameStartTime = Date.now();
@@ -5497,6 +5543,501 @@ class Store {
     }
 
     return { path, hint };
+  }
+
+  getHintState(): HintState {
+    return { ...this.state.hints };
+  }
+
+  updateHintTracking(update: Partial<HintState['contextTracking']>): void {
+    this.state.hints.contextTracking = {
+      ...this.state.hints.contextTracking,
+      ...update,
+      lastInteractionTime: Date.now()
+    };
+    this.saveToStorage();
+  }
+
+  startMechanismTracking(mechanismId: string): void {
+    this.state.hints.contextTracking.currentMechanismId = mechanismId;
+    this.state.hints.contextTracking.mechanismStartTime[mechanismId] = Date.now();
+    if (!this.state.hints.contextTracking.mechanismWrongAttempts[mechanismId]) {
+      this.state.hints.contextTracking.mechanismWrongAttempts[mechanismId] = 0;
+    }
+    this.state.endingEvaluation.mechanismStartTime[mechanismId] = Date.now();
+    this.saveToStorage();
+  }
+
+  recordMechanismWrongAttempt(mechanismId: string): void {
+    this.state.hints.contextTracking.mechanismWrongAttempts[mechanismId] = 
+      (this.state.hints.contextTracking.mechanismWrongAttempts[mechanismId] || 0) + 1;
+    this.saveToStorage();
+  }
+
+  startMemoryPuzzleTracking(puzzleId: string): void {
+    this.state.hints.contextTracking.currentMemoryPuzzleId = puzzleId;
+    this.state.hints.contextTracking.memoryPuzzleStartTime[puzzleId] = Date.now();
+    if (!this.state.hints.contextTracking.memoryPuzzleWrongAttempts[puzzleId]) {
+      this.state.hints.contextTracking.memoryPuzzleWrongAttempts[puzzleId] = 0;
+    }
+    this.saveToStorage();
+  }
+
+  recordMemoryPuzzleWrongAttempt(puzzleId: string): void {
+    this.state.hints.contextTracking.memoryPuzzleWrongAttempts[puzzleId] = 
+      (this.state.hints.contextTracking.memoryPuzzleWrongAttempts[puzzleId] || 0) + 1;
+    this.saveToStorage();
+  }
+
+  setChapterPhase(phase: number): void {
+    this.state.hints.contextTracking.currentChapterPhase = phase;
+    this.saveToStorage();
+  }
+
+  shouldShowAutoHint(contextType: HintContextType, targetId: string): boolean {
+    if (!this.state.hints.autoHintEnabled) return false;
+
+    const now = Date.now();
+    const { contextTracking } = this.state.hints;
+    
+    if (now - contextTracking.lastHintTime < GAME_CONFIG.PROGRESSIVE_HINTS.MIN_TIME_BETWEEN_HINTS_MS) {
+      return false;
+    }
+
+    const recentSessionHints = this.state.hints.hintHistory.filter(
+      h => now - h.displayedAt < 30 * 60 * 1000
+    );
+    if (recentSessionHints.length >= GAME_CONFIG.PROGRESSIVE_HINTS.MAX_HINTS_PER_SESSION) {
+      return false;
+    }
+
+    if (this.state.hints.dismissedHints.includes(`${contextType}:${targetId}`)) {
+      return false;
+    }
+
+    const chapterPhase = contextTracking.currentChapterPhase as keyof typeof GAME_CONFIG.PROGRESSIVE_HINTS.CHAPTER_PHASE_ADJUSTMENTS;
+    const phaseAdjustment = GAME_CONFIG.PROGRESSIVE_HINTS.CHAPTER_PHASE_ADJUSTMENTS[chapterPhase] ?? 1.0;
+
+    let stuckDuration = 0;
+    let wrongAttempts = 0;
+
+    if (contextType === 'mechanism') {
+      stuckDuration = now - (contextTracking.mechanismStartTime[targetId] || now);
+      wrongAttempts = contextTracking.mechanismWrongAttempts[targetId] || 0;
+    } else if (contextType === 'memory_puzzle') {
+      stuckDuration = now - (contextTracking.memoryPuzzleStartTime[targetId] || now);
+      wrongAttempts = contextTracking.memoryPuzzleWrongAttempts[targetId] || 0;
+    } else if (contextType === 'exploration') {
+      stuckDuration = now - contextTracking.explorationStartTime;
+    }
+
+    const adjustedStuckThreshold = GAME_CONFIG.PROGRESSIVE_HINTS.STUCK_TIME_THRESHOLDS.medium * phaseAdjustment;
+    const adjustedAttemptsThreshold = GAME_CONFIG.PROGRESSIVE_HINTS.WRONG_ATTEMPTS_THRESHOLDS.medium * phaseAdjustment;
+
+    return stuckDuration >= adjustedStuckThreshold || wrongAttempts >= adjustedAttemptsThreshold;
+  }
+
+  determineUrgencyLevel(contextType: HintContextType, targetId: string): HintUrgencyLevel {
+    const now = Date.now();
+    const { contextTracking } = this.state.hints;
+    const chapterPhase = contextTracking.currentChapterPhase as keyof typeof GAME_CONFIG.PROGRESSIVE_HINTS.CHAPTER_PHASE_ADJUSTMENTS;
+    const phaseAdjustment = GAME_CONFIG.PROGRESSIVE_HINTS.CHAPTER_PHASE_ADJUSTMENTS[chapterPhase] ?? 1.0;
+
+    let stuckDuration = 0;
+    let wrongAttempts = 0;
+
+    if (contextType === 'mechanism') {
+      stuckDuration = now - (contextTracking.mechanismStartTime[targetId] || now);
+      wrongAttempts = contextTracking.mechanismWrongAttempts[targetId] || 0;
+    } else if (contextType === 'memory_puzzle') {
+      stuckDuration = now - (contextTracking.memoryPuzzleStartTime[targetId] || now);
+      wrongAttempts = contextTracking.memoryPuzzleWrongAttempts[targetId] || 0;
+    }
+
+    const thresholds = GAME_CONFIG.PROGRESSIVE_HINTS;
+    
+    if (stuckDuration >= thresholds.STUCK_TIME_THRESHOLDS.critical * phaseAdjustment ||
+        wrongAttempts >= thresholds.WRONG_ATTEMPTS_THRESHOLDS.critical * phaseAdjustment) {
+      return 'critical';
+    }
+    if (stuckDuration >= thresholds.STUCK_TIME_THRESHOLDS.high * phaseAdjustment ||
+        wrongAttempts >= thresholds.WRONG_ATTEMPTS_THRESHOLDS.high * phaseAdjustment) {
+      return 'high';
+    }
+    if (stuckDuration >= thresholds.STUCK_TIME_THRESHOLDS.medium * phaseAdjustment ||
+        wrongAttempts >= thresholds.WRONG_ATTEMPTS_THRESHOLDS.medium * phaseAdjustment) {
+      return 'medium';
+    }
+    return 'low';
+  }
+
+  determineDetailLevel(_urgency: HintUrgencyLevel, contextType: HintContextType, targetId: string): HintDetailLevel {
+    const previousHintsForTarget = this.state.hints.hintHistory.filter(
+      h => h.contextType === contextType && h.targetId === targetId
+    );
+    
+    const hintCount = previousHintsForTarget.length;
+    const progression = GAME_CONFIG.PROGRESSIVE_HINTS.DETAIL_LEVEL_PROGRESSION;
+    
+    const index = Math.min(hintCount, progression.length - 1);
+    return progression[index];
+  }
+
+  generateProgressiveHint(request: HintGenerationRequest): HintContent | null {
+    const { contextType, targetId, chapterId } = request;
+
+    const urgency = this.determineUrgencyLevel(contextType, targetId);
+    const detailLevel = this.determineDetailLevel(urgency, contextType, targetId);
+
+    const hintId = `${contextType}:${targetId}:${Date.now()}`;
+
+    let title = '';
+    let message = '';
+    let suggestion: string | undefined;
+    let relatedHotspots: string[] | undefined;
+    let relatedClues: string[] | undefined;
+
+    if (contextType === 'mechanism') {
+      const mechanism = this.mechanisms.find(m => m.id === targetId);
+      if (!mechanism) return null;
+
+      const mechTypeNames: Record<string, string> = {
+        'password': '密码锁',
+        'sequence': '序列机关',
+        'restoration': '修复台',
+        'linked': '联动机关',
+        'authenticity': '鉴定台',
+        'memory_sort': '记忆排序',
+        'branch_choice': '抉择时刻'
+      };
+
+      const typeName = mechTypeNames[mechanism.type] || '机关';
+
+      if (detailLevel === 1) {
+        title = '需要帮助吗？';
+        message = `「${mechanism.displayName}」可能需要一些线索才能解开。`;
+        suggestion = '查看已收集的线索，寻找与这个机关相关的信息。';
+      } else if (detailLevel === 2) {
+        title = '线索指引';
+        message = mechanism.hint || `仔细思考${typeName}的解谜逻辑。`;
+        const relatedClueList = this.getAvailableCluesForMechanism(targetId);
+        if (relatedClueList.length > 0) {
+          relatedClues = relatedClueList.map(c => c.id);
+          suggestion = `提示：「${relatedClueList[0].name}」可能与此有关。`;
+        }
+      } else if (detailLevel === 3) {
+        title = '详细提示';
+        const relatedClueList = this.getAvailableCluesForMechanism(targetId);
+        if (relatedClueList.length > 0) {
+          const clue = relatedClueList[0];
+          message = `「${clue.name}」显示：${clue.description}`;
+          suggestion = this.getCluePurposeDisplay(clue.id);
+          relatedClues = relatedClueList.map(c => c.id);
+        } else {
+          message = mechanism.hint || '仔细观察周围环境，寻找隐藏的线索。';
+        }
+      } else {
+        title = '直接提示';
+        if (mechanism.type === 'password') {
+          const answer = mechanism.answer as string;
+          message = `密码的第一位是「${answer[0]}」，其余部分请根据线索推理。`;
+        } else if (mechanism.type === 'sequence') {
+          const answer = mechanism.answer as number[];
+          message = `第一步应该点击编号为「${answer[0]}」的位置。`;
+        } else {
+          message = mechanism.hint || '继续尝试，你已经很接近答案了！';
+        }
+        suggestion = '如果仍然困难，可以考虑使用提示功能（会扣除少量积分）。';
+      }
+
+      const exhibition = this.findExhibitionForMechanism(targetId);
+      if (exhibition) {
+        const hotspot = exhibition.hotspots.find(h => h.type === 'mechanism' && h.targetId === targetId);
+        if (hotspot) {
+          relatedHotspots = [hotspot.id];
+        }
+      }
+    } else if (contextType === 'memory_puzzle') {
+      const fragments = this.getMemoryFragments(chapterId);
+
+      if (detailLevel === 1) {
+        title = '记忆提示';
+        message = '仔细回忆每个记忆碎片的内容，思考它们发生的时间顺序。';
+        suggestion = '可以从最早的记忆开始，逐步排列到最近的记忆。';
+      } else if (detailLevel === 2) {
+        title = '线索指引';
+        if (fragments.length > 0) {
+          const firstFragment = fragments.sort((a, b) => (a.memoryOrder || 0) - (b.memoryOrder || 0))[0];
+          message = `「${firstFragment.name}」是这段记忆的开始。`;
+          suggestion = `提示：${firstFragment.description.slice(0, 50)}...`;
+        }
+      } else if (detailLevel === 3) {
+        title = '详细提示';
+        const sortedFragments = fragments.sort((a, b) => (a.memoryOrder || 0) - (b.memoryOrder || 0));
+        if (sortedFragments.length >= 2) {
+          message = `顺序应该是：「${sortedFragments[0].name}」→「${sortedFragments[1].name}」→ ...`;
+          suggestion = '根据事件发展的逻辑顺序来排列剩余的碎片。';
+        }
+      } else {
+        title = '直接提示';
+        const sortedFragments = fragments.sort((a, b) => (a.memoryOrder || 0) - (b.memoryOrder || 0));
+        const correctOrder = sortedFragments.map(f => f.name).join(' → ');
+        message = `正确顺序是：${correctOrder}`;
+        suggestion = '理解为什么是这个顺序，这对理解故事很重要。';
+      }
+
+      relatedClues = fragments.filter(f => this.state.collectedClues.includes(f.id)).map(f => f.id);
+    } else if (contextType === 'chapter_progress') {
+      const analysis = this.analyzeChapterProgress(chapterId);
+      
+      if (detailLevel === 1) {
+        title = '章节进度';
+        message = `当前完成度：${analysis.completionPercentage}%`;
+        suggestion = analysis.nextSuggestion;
+      } else if (detailLevel === 2) {
+        title = '下一步行动';
+        message = analysis.nextSuggestion;
+        if (analysis.incompleteConditions.length > 0) {
+          const condition = analysis.incompleteConditions[0];
+          suggestion = `目标：${condition.description}`;
+          relatedHotspots = condition.exhibitionId ? [condition.exhibitionId] : undefined;
+        }
+      } else if (detailLevel >= 3) {
+        title = '详细指引';
+        if (analysis.incompleteConditions.length > 0) {
+          const condition = analysis.incompleteConditions[0];
+          message = `${condition.description}\n提示：${condition.hint}`;
+          suggestion = `前往「${condition.location}」`;
+          relatedHotspots = condition.exhibitionId ? [condition.exhibitionId] : undefined;
+        } else {
+          message = '本章节即将完成！';
+          suggestion = '检查是否还有遗漏的记忆碎片。';
+        }
+      }
+    } else if (contextType === 'exploration') {
+      const currentExhibition = this.getCurrentExhibition();
+      const availableMechanisms = this.getCurrentExhibitionMechanisms();
+      const availableClues = this.getAvailableCluesForCurrentExhibition();
+
+      if (detailLevel === 1) {
+        title = '探索提示';
+        message = currentExhibition 
+          ? `当前在「${currentExhibition.name}」，这里还有一些秘密等待发现。` 
+          : '继续探索博物馆，寻找更多线索。';
+        suggestion = '点击场景中的热点区域进行调查。';
+      } else if (detailLevel === 2) {
+        title = '线索指引';
+        if (availableClues.length > 0) {
+          message = `你背包中的「${availableClues[0].name}」可能在这里派上用场。`;
+          suggestion = this.getCluePurposeDisplay(availableClues[0].id);
+          relatedClues = [availableClues[0].id];
+        } else if (availableMechanisms.length > 0) {
+          message = `试试解开「${availableMechanisms[0].displayName}」。`;
+          const exhibition = this.getCurrentExhibition();
+          const hotspot = exhibition?.hotspots.find(h => h.type === 'mechanism' && h.targetId === availableMechanisms[0].id);
+          if (hotspot) {
+            relatedHotspots = [hotspot.id];
+          }
+        }
+      } else if (detailLevel >= 3) {
+        title = '详细指引';
+        if (availableMechanisms.length > 0) {
+          const mech = availableMechanisms[0];
+          const reqClues = this.getRequiredCluesForMechanism(mech.id);
+          const missingClues = reqClues.filter(cid => !this.state.collectedClues.includes(cid));
+          
+          if (missingClues.length > 0) {
+            const missingClue = this.clues.find(c => c.id === missingClues[0]);
+            const clueExhibition = this.findExhibitionForClue(missingClues[0]);
+            message = `解开「${mech.displayName}」需要先找到「${missingClue?.name || '某个线索'}」。`;
+            suggestion = clueExhibition ? `前往「${clueExhibition.name}」寻找` : '继续探索其他展区';
+            if (clueExhibition) {
+              relatedHotspots = [clueExhibition.id];
+            }
+          } else {
+            message = mech.hint || `你已经收集了解开「${mech.displayName}」所需的所有线索！`;
+            suggestion = '仔细分析线索，尝试解开机关。';
+          }
+        } else {
+          message = '这个展区的探索已经完成，可以前往下一个展区。';
+          const nextChapter = this.getNextChapter(chapterId);
+          if (nextChapter) {
+            suggestion = `下一章节：${nextChapter.title}`;
+          }
+        }
+      }
+    } else if (contextType === 'exhibition_navigation') {
+      const analysis = this.analyzeChapterProgress(chapterId);
+      
+      if (detailLevel === 1) {
+        title = '导航提示';
+        message = analysis.nextSuggestion;
+      } else if (detailLevel >= 2) {
+        title = '路线指引';
+        if (analysis.incompleteConditions.length > 0) {
+          const condition = analysis.incompleteConditions[0];
+          const navHint = this.getNavigationHint(condition.targetId, condition.type as any);
+          message = navHint.hint;
+          if (navHint.path.length > 0) {
+            relatedHotspots = navHint.path;
+          }
+          suggestion = condition.hint;
+        }
+      }
+    }
+
+    const hintContent: HintContent = {
+      id: hintId,
+      contextType,
+      targetId,
+      urgencyLevel: urgency,
+      detailLevel,
+      title,
+      message,
+      suggestion,
+      relatedHotspots,
+      relatedClues,
+      displayDuration: GAME_CONFIG.PROGRESSIVE_HINTS.DEFAULT_DISPLAY_DURATION
+    };
+
+    return hintContent;
+  }
+
+  displayHint(hint: HintContent): void {
+    this.state.hints.activeHintId = hint.id;
+    this.state.hints.displayedHints.push(hint.id);
+    this.state.hints.contextTracking.lastHintTime = Date.now();
+
+    const historyEntry: HintHistoryEntry = {
+      hintId: hint.id,
+      contextType: hint.contextType,
+      targetId: hint.targetId,
+      displayedAt: Date.now(),
+      urgencyLevel: hint.urgencyLevel,
+      detailLevel: hint.detailLevel
+    };
+    this.state.hints.hintHistory.push(historyEntry);
+
+    eventBus.emit('hint:display', { hint });
+    this.saveToStorage();
+  }
+
+  dismissHint(hintId: string, userAction: 'used' | 'dismissed' | 'ignored' = 'dismissed'): void {
+    const entry = this.state.hints.hintHistory.find(h => h.hintId === hintId);
+    if (entry) {
+      entry.dismissedAt = Date.now();
+      entry.userAction = userAction;
+    }
+
+    if (userAction === 'dismissed') {
+      const hint = this.state.hints.hintHistory.find(h => h.hintId === hintId);
+      if (hint) {
+        this.state.hints.dismissedHints.push(`${hint.contextType}:${hint.targetId}`);
+      }
+    }
+
+    if (this.state.hints.activeHintId === hintId) {
+      this.state.hints.activeHintId = null;
+    }
+
+    eventBus.emit('hint:dismissed', { hintId, userAction });
+    this.saveToStorage();
+  }
+
+  requestManualHint(contextType: HintContextType, targetId: string, chapterId: string): HintContent | null {
+    const request: HintGenerationRequest = {
+      contextType,
+      targetId,
+      chapterId,
+      chapterPhase: this.state.hints.contextTracking.currentChapterPhase
+    };
+
+    const hint = this.generateProgressiveHint(request);
+    if (hint) {
+      this.displayHint(hint);
+    }
+    return hint;
+  }
+
+  checkAndTriggerAutoHint(contextType: HintContextType, targetId: string, chapterId: string): HintContent | null {
+    if (!this.shouldShowAutoHint(contextType, targetId)) {
+      return null;
+    }
+
+    const now = Date.now();
+    const stuckDurationMs = contextType === 'mechanism' 
+      ? now - (this.state.hints.contextTracking.mechanismStartTime[targetId] || now)
+      : contextType === 'memory_puzzle'
+      ? now - (this.state.hints.contextTracking.memoryPuzzleStartTime[targetId] || now)
+      : now - this.state.hints.contextTracking.explorationStartTime;
+
+    const wrongAttempts = contextType === 'mechanism'
+      ? this.state.hints.contextTracking.mechanismWrongAttempts[targetId] || 0
+      : contextType === 'memory_puzzle'
+      ? this.state.hints.contextTracking.memoryPuzzleWrongAttempts[targetId] || 0
+      : 0;
+
+    const request: HintGenerationRequest = {
+      contextType,
+      targetId,
+      chapterId,
+      wrongAttempts,
+      stuckDurationMs,
+      chapterPhase: this.state.hints.contextTracking.currentChapterPhase
+    };
+
+    const hint = this.generateProgressiveHint(request);
+    if (hint) {
+      this.displayHint(hint);
+    }
+    return hint;
+  }
+
+  toggleAutoHint(enabled: boolean): void {
+    this.state.hints.autoHintEnabled = enabled;
+    eventBus.emit('hint:setting-changed', { autoHintEnabled: enabled });
+    this.saveToStorage();
+  }
+
+  setHintFrequency(frequency: 'conservative' | 'normal' | 'aggressive'): void {
+    this.state.hints.hintFrequency = frequency;
+    eventBus.emit('hint:setting-changed', { hintFrequency: frequency });
+    this.saveToStorage();
+  }
+
+  resetHintDismissals(): void {
+    this.state.hints.dismissedHints = [];
+    this.saveToStorage();
+  }
+
+  getHintHistory(contextType?: HintContextType, targetId?: string): HintHistoryEntry[] {
+    let history = [...this.state.hints.hintHistory];
+    
+    if (contextType) {
+      history = history.filter(h => h.contextType === contextType);
+    }
+    
+    if (targetId) {
+      history = history.filter(h => h.targetId === targetId);
+    }
+    
+    return history.sort((a, b) => b.displayedAt - a.displayedAt);
+  }
+
+  clearContextTracking(): void {
+    this.state.hints.contextTracking = {
+      currentMechanismId: null,
+      currentMemoryPuzzleId: null,
+      mechanismStartTime: {},
+      mechanismWrongAttempts: {},
+      memoryPuzzleStartTime: {},
+      memoryPuzzleWrongAttempts: {},
+      explorationStartTime: Date.now(),
+      lastInteractionTime: Date.now(),
+      lastHintTime: this.state.hints.contextTracking.lastHintTime,
+      currentChapterPhase: this.state.hints.contextTracking.currentChapterPhase
+    };
+    this.saveToStorage();
   }
 }
 

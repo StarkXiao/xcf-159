@@ -452,6 +452,9 @@ export class MemorySortModule {
       audioModule.playSFX('sfx_error');
       this.showHint(result.message || '顺序不正确，请重新排列');
       this.shakeAnimation();
+      if (this.currentPuzzleId && result.message && result.message !== '请将所有记忆碎片放入槽位中') {
+        store.recordMemoryPuzzleWrongAttempt(this.currentPuzzleId);
+      }
     }
   }
 

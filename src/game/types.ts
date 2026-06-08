@@ -976,6 +976,7 @@ export interface GameState {
   memoryPuzzleRecovery: MemoryPuzzleRecoveryState;
   breakpoint: BreakpointState;
   endingEvaluation: EndingEvaluationState;
+  hints: HintState;
 }
 
 export interface MemorySortSubmitResult {
@@ -1080,4 +1081,91 @@ export interface SceneAudioState {
   currentStoryNode: StoryNodeType | null;
   activeAmbientTracks: string[];
   activeMechanismId: string | null;
+}
+
+export type HintContextType = 'mechanism' | 'memory_puzzle' | 'exploration' | 'chapter_progress' | 'exhibition_navigation';
+export type HintUrgencyLevel = 'low' | 'medium' | 'high' | 'critical';
+export type HintDetailLevel = 1 | 2 | 3 | 4;
+
+export interface HintTriggerCondition {
+  type: 'stuck_time' | 'wrong_attempts' | 'chapter_phase' | 'combined';
+  threshold: number;
+  windowMs?: number;
+}
+
+export interface HintContent {
+  id: string;
+  contextType: HintContextType;
+  targetId: string;
+  urgencyLevel: HintUrgencyLevel;
+  detailLevel: HintDetailLevel;
+  title: string;
+  message: string;
+  suggestion?: string;
+  audioPrompt?: string;
+  relatedHotspots?: string[];
+  relatedClues?: string[];
+  displayDuration?: number;
+}
+
+export interface HintState {
+  activeHintId: string | null;
+  displayedHints: string[];
+  dismissedHints: string[];
+  hintHistory: HintHistoryEntry[];
+  autoHintEnabled: boolean;
+  hintFrequency: 'conservative' | 'normal' | 'aggressive';
+  contextTracking: HintContextTracking;
+}
+
+export interface HintContextTracking {
+  currentMechanismId: string | null;
+  currentMemoryPuzzleId: string | null;
+  mechanismStartTime: Record<string, number>;
+  mechanismWrongAttempts: Record<string, number>;
+  memoryPuzzleStartTime: Record<string, number>;
+  memoryPuzzleWrongAttempts: Record<string, number>;
+  explorationStartTime: number;
+  lastInteractionTime: number;
+  lastHintTime: number;
+  currentChapterPhase: number;
+}
+
+export interface HintHistoryEntry {
+  hintId: string;
+  contextType: HintContextType;
+  targetId: string;
+  displayedAt: number;
+  dismissedAt?: number;
+  userAction?: 'used' | 'dismissed' | 'ignored';
+  urgencyLevel: HintUrgencyLevel;
+  detailLevel: HintDetailLevel;
+}
+
+export interface HintGenerationRequest {
+  contextType: HintContextType;
+  targetId: string;
+  chapterId: string;
+  wrongAttempts?: number;
+  stuckDurationMs?: number;
+  chapterPhase?: number;
+  preferredDetailLevel?: HintDetailLevel;
+}
+
+export interface ProgressiveHintConfig {
+  stuckTimeThresholds: Record<HintUrgencyLevel, number>;
+  wrongAttemptsThresholds: Record<HintUrgencyLevel, number>;
+  cooldownMs: number;
+  minTimeBetweenHintsMs: number;
+  maxHintsPerSession: number;
+  chapterPhaseAdjustments: Record<number, number>;
+  detailLevelProgression: HintDetailLevel[];
+}
+
+export interface HintAudioMap {
+  [hintId: string]: {
+    sfx: string;
+    voiceLine?: string;
+    volume: number;
+  };
 }

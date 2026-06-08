@@ -799,6 +799,9 @@ export class MechanismModule {
     this.showErrorHint(feedback);
     this.shakeAnimation();
     this.highlightInputPositions(feedback);
+    if (this.currentMechanism && feedback.type !== 'incomplete_input' && feedback.type !== 'format_error') {
+      store.recordMechanismWrongAttempt(this.currentMechanism.id);
+    }
   }
 
   private showErrorHint(feedback: MechanismErrorFeedback): void {

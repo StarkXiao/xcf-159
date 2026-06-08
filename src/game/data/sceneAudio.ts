@@ -846,3 +846,90 @@ export const AMBIENT_DURATION_MAP: Record<string, number> = {
   ambient_crickets: 0.1,
   ambient_heartbeat: 1.2
 };
+
+export const HINT_AUDIO_MAP: Record<string, { sfx: string; voiceLine?: string; volume: number }> = {
+  'hint_mechanism_low': {
+    sfx: 'sfx_hint_gentle',
+    volume: 0.4
+  },
+  'hint_mechanism_medium': {
+    sfx: 'sfx_hint_notice',
+    volume: 0.5
+  },
+  'hint_mechanism_high': {
+    sfx: 'sfx_hint_urgent',
+    volume: 0.6
+  },
+  'hint_mechanism_critical': {
+    sfx: 'sfx_hint_urgent',
+    volume: 0.7
+  },
+  'hint_memory_low': {
+    sfx: 'sfx_memory_hint',
+    volume: 0.4
+  },
+  'hint_memory_medium': {
+    sfx: 'sfx_memory_hint',
+    volume: 0.5
+  },
+  'hint_memory_high': {
+    sfx: 'sfx_memory_hint',
+    volume: 0.6
+  },
+  'hint_memory_critical': {
+    sfx: 'sfx_memory_hint',
+    volume: 0.7
+  },
+  'hint_exploration_low': {
+    sfx: 'sfx_whisper',
+    volume: 0.35
+  },
+  'hint_exploration_medium': {
+    sfx: 'sfx_whisper',
+    volume: 0.45
+  },
+  'hint_exploration_high': {
+    sfx: 'sfx_whisper',
+    volume: 0.55
+  },
+  'hint_exploration_critical': {
+    sfx: 'sfx_whisper',
+    volume: 0.65
+  },
+  'hint_progress_low': {
+    sfx: 'sfx_hint_gentle',
+    volume: 0.4
+  },
+  'hint_progress_medium': {
+    sfx: 'sfx_hint_notice',
+    volume: 0.5
+  },
+  'hint_progress_high': {
+    sfx: 'sfx_hint_urgent',
+    volume: 0.6
+  },
+  'hint_navigation_low': {
+    sfx: 'sfx_hint_gentle',
+    volume: 0.35
+  },
+  'hint_navigation_medium': {
+    sfx: 'sfx_hint_notice',
+    volume: 0.45
+  },
+  'hint_navigation_high': {
+    sfx: 'sfx_hint_urgent',
+    volume: 0.55
+  },
+  'hint_manual': {
+    sfx: 'sfx_click',
+    volume: 0.5
+  },
+  'hint_display': {
+    sfx: 'sfx_hint_appear',
+    volume: 0.4
+  },
+  'hint_dismiss': {
+    sfx: 'sfx_click',
+    volume: 0.3
+  }
+};

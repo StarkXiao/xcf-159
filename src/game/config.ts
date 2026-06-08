@@ -64,5 +64,32 @@ export const GAME_CONFIG = {
     SPEED_BONUS_THRESHOLD: 60000,
     SPEED_BONUS_MAX: 100
   } as const,
+  PROGRESSIVE_HINTS: {
+    STUCK_TIME_THRESHOLDS: {
+      low: 30000,
+      medium: 60000,
+      high: 120000,
+      critical: 180000
+    } as const,
+    WRONG_ATTEMPTS_THRESHOLDS: {
+      low: 2,
+      medium: 4,
+      high: 6,
+      critical: 8
+    } as const,
+    COOLDOWN_MS: 5000,
+    MIN_TIME_BETWEEN_HINTS_MS: 15000,
+    MAX_HINTS_PER_SESSION: 10,
+    CHAPTER_PHASE_ADJUSTMENTS: {
+      1: 0.5,
+      2: 0.7,
+      3: 0.85,
+      4: 1.0,
+      5: 1.0,
+      6: 1.0
+    } as const,
+    DETAIL_LEVEL_PROGRESSION: [1, 2, 3, 4] as const,
+    DEFAULT_DISPLAY_DURATION: 8000
+  } as const,
   AUTO_SAVE_INTERVAL: 30000
 } as const;

@@ -296,7 +296,7 @@ export class StartScene extends Scene {
     const panel = new PIXI.Graphics();
     panel.beginFill(GAME_CONFIG.COLORS.DARK_BROWN, 0.95);
     panel.lineStyle(4, GAME_CONFIG.COLORS.AMBER, 1);
-    panel.drawRoundedRect(75, 350, 600, 600, 20);
+    panel.drawRoundedRect(75, 350, 600, 780, 20);
     panel.endFill();
     this.settingsPanel.addChild(panel);
 
@@ -318,6 +318,9 @@ export class StartScene extends Scene {
     this.createVolumeControl('背景音乐', 'bgm', bgmVolume, bgmMuted, 490);
     this.createVolumeControl('音效', 'sfx', sfxVolume, sfxMuted, 620);
 
+    const hintState = store.getHintState();
+    this.createHintSettings(hintState.autoHintEnabled, hintState.hintFrequency, 750);
+
     const closeBtn = new PIXI.Graphics();
     closeBtn.beginFill(GAME_CONFIG.COLORS.AMBER, 0.9);
     closeBtn.lineStyle(3, GAME_CONFIG.COLORS.GOLD, 1);
@@ -335,7 +338,7 @@ export class StartScene extends Scene {
     closeBtn.addChild(closeText);
 
     closeBtn.x = 275;
-    closeBtn.y = 780;
+    closeBtn.y = 1030;
     closeBtn.eventMode = 'static';
     closeBtn.cursor = 'pointer';
     closeBtn.on('pointerdown', () => {
@@ -451,6 +454,115 @@ export class StartScene extends Scene {
         audioModule.setSFXVolume(newVolume);
       }
     });
+  }
+
+  private createHintSettings(autoHintEnabled: boolean, frequency: 'conservative' | 'normal' | 'aggressive', y: number): void {
+    const panel = this.settingsPanel;
+    if (!panel) return;
+
+    const bg = new PIXI.Graphics();
+    bg.beginFill(GAME_CONFIG.COLORS.BRONZE, 0.4);
+    bg.lineStyle(2, GAME_CONFIG.COLORS.AMBER, 0.6);
+    bg.drawRoundedRect(100, y - 40, 550, 180, 12);
+    bg.endFill();
+    panel.addChild(bg);
+
+    const labelText = new PIXI.Text('智能提示', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 22,
+      fill: GAME_CONFIG.COLORS.CREAM
+    });
+    labelText.x = 130;
+    labelText.y = y - 10;
+    panel.addChild(labelText);
+
+    const hintToggleBtn = new PIXI.Graphics();
+    const toggleColor = autoHintEnabled ? GAME_CONFIG.COLORS.AMBER : GAME_CONFIG.COLORS.BRONZE;
+    hintToggleBtn.beginFill(toggleColor, 0.8);
+    hintToggleBtn.lineStyle(2, GAME_CONFIG.COLORS.GOLD, 1);
+    hintToggleBtn.drawRoundedRect(0, 0, 100, 40, 8);
+    hintToggleBtn.endFill();
+
+    const hintToggleText = new PIXI.Text(autoHintEnabled ? '已开启' : '已关闭', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 16,
+      fill: GAME_CONFIG.COLORS.CREAM
+    });
+    hintToggleText.anchor.set(0.5);
+    hintToggleText.x = 50;
+    hintToggleText.y = 20;
+    hintToggleBtn.addChild(hintToggleText);
+
+    hintToggleBtn.x = 520;
+    hintToggleBtn.y = y - 15;
+    hintToggleBtn.eventMode = 'static';
+    hintToggleBtn.cursor = 'pointer';
+    hintToggleBtn.on('pointerdown', () => {
+      audioModule.playSFX('sfx_click');
+      store.toggleAutoHint(!autoHintEnabled);
+      this.closeSettings();
+      Animator.delay(100).then(() => this.openSettings());
+    });
+    panel.addChild(hintToggleBtn);
+
+    const freqLabel = new PIXI.Text('提示频率：', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 18,
+      fill: GAME_CONFIG.COLORS.CREAM
+    });
+    freqLabel.x = 130;
+    freqLabel.y = y + 40;
+    panel.addChild(freqLabel);
+
+    const freqOptions: Array<{ value: 'conservative' | 'normal' | 'aggressive'; label: string }> = [
+      { value: 'conservative', label: '保守' },
+      { value: 'normal', label: '正常' },
+      { value: 'aggressive', label: '积极' }
+    ];
+
+    freqOptions.forEach((option, i) => {
+      const isSelected = frequency === option.value;
+      const freqBtn = new PIXI.Graphics();
+      const btnColor = isSelected ? GAME_CONFIG.COLORS.AMBER : GAME_CONFIG.COLORS.BRONZE;
+      freqBtn.beginFill(btnColor, isSelected ? 0.9 : 0.5);
+      freqBtn.lineStyle(2, isSelected ? GAME_CONFIG.COLORS.GOLD : GAME_CONFIG.COLORS.AMBER, 0.6);
+      freqBtn.drawRoundedRect(0, 0, 90, 35, 8);
+      freqBtn.endFill();
+
+      const freqText = new PIXI.Text(option.label, {
+        fontFamily: GAME_CONFIG.FONTS.BODY,
+        fontSize: 16,
+        fill: isSelected ? GAME_CONFIG.COLORS.DARK_BROWN : GAME_CONFIG.COLORS.CREAM
+      });
+      freqText.anchor.set(0.5);
+      freqText.x = 45;
+      freqText.y = 17.5;
+      freqBtn.addChild(freqText);
+
+      freqBtn.x = 250 + i * 110;
+      freqBtn.y = y + 35;
+      freqBtn.eventMode = 'static';
+      freqBtn.cursor = 'pointer';
+      freqBtn.on('pointerdown', () => {
+        audioModule.playSFX('sfx_click');
+        store.setHintFrequency(option.value);
+        eventBus.emit('hint:setting-changed', { frequency: option.value });
+        this.closeSettings();
+        Animator.delay(100).then(() => this.openSettings());
+      });
+      panel.addChild(freqBtn);
+    });
+
+    const descText = new PIXI.Text('保守：较少提示，更具挑战性\n积极：更频繁的帮助，适合新手', {
+      fontFamily: GAME_CONFIG.FONTS.BODY,
+      fontSize: 14,
+      fill: 0xAAAAAA,
+      align: 'left',
+      lineHeight: 20
+    });
+    descText.x = 130;
+    descText.y = y + 90;
+    panel.addChild(descText);
   }
 
   private closeSettings(): void {
