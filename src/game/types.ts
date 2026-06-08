@@ -885,6 +885,7 @@ export interface MemoryPuzzleState {
   baseScore: number;
   finalScore: number;
   scoreMultiplier: number;
+  solutionPath: string[];
 }
 
 export interface MemoryPuzzleScoreResult {

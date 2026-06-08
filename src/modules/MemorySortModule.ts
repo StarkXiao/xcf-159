@@ -500,6 +500,8 @@ export class MemorySortModule {
   private useHint(): void {
     if (!this.canGetHint) return;
 
+    store.recordMechanismHintUsed(this.currentMechanismId);
+    
     const fragmentIds = this.fragments.map(f => f.id);
     const hint = store.generateMemorySortHint(this.currentPuzzleId, this.arrangedIds, fragmentIds);
     

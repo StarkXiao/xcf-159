@@ -746,7 +746,9 @@ export class ExhibitionModule {
         eventBus.emit('clue:collect', { clueId: hotspot.targetId });
 
         let collected: boolean;
-        if (isDualHallClue) {
+        if (clue?.isEndingClue) {
+          collected = store.collectHiddenClue(hotspot.targetId);
+        } else if (isDualHallClue) {
           collected = store.collectDualHallClue(hotspot.targetId);
         } else {
           collected = store.collectClue(hotspot.targetId);

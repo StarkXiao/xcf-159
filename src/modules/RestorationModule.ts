@@ -14,6 +14,7 @@ export class RestorationModule {
   private stepInput: number[] = [];
   private stepSlots: PIXI.Container[] = [];
   private isOpen: boolean = false;
+  private solutionPath: string[] = [];
 
   constructor(container: PIXI.Container) {
     this.container = container;
@@ -43,8 +44,10 @@ export class RestorationModule {
     this.currentMechanism = mechanism;
     this.currentRelic = relic;
     this.stepInput = [];
+    this.solutionPath = [];
     this.isOpen = true;
 
+    store.setActiveMechanism(mechanism.id);
     this.showRestorationPanel(mechanism, relic);
   }
 
@@ -400,6 +403,7 @@ export class RestorationModule {
     if (this.stepInput.length >= steps.length) return;
 
     this.stepInput.push(step.order);
+    this.solutionPath.push(`step:${step.materialId}`);
     const index = this.stepInput.length - 1;
 
     if (this.stepSlots[index]) {
@@ -429,6 +433,7 @@ export class RestorationModule {
 
   private clearSteps(): void {
     this.stepInput = [];
+    this.solutionPath.push('clear');
 
     this.stepSlots.forEach(slot => {
       const oldChildren = slot.children.filter((_, i) => i > 1);
@@ -451,10 +456,15 @@ export class RestorationModule {
       return;
     }
 
+    store.recordMechanismAttempt(this.currentMechanism.id);
+    this.solutionPath.push(`restore:${this.stepInput.join(',')}`);
+    
     const isCorrect = store.checkRestorationOrder(this.currentRelic.id, this.stepInput);
     if (isCorrect) {
+      this.solutionPath.push('success');
       this.onRestorationSuccess();
     } else {
+      this.solutionPath.push('error');
       this.onRestorationError();
     }
   }
@@ -464,7 +474,7 @@ export class RestorationModule {
     audioModule.playSFX('sfx_unlock');
 
     if (this.currentMechanism) {
-      store.solveMechanism(this.currentMechanism.id);
+      store.solveMechanism(this.currentMechanism.id, this.solutionPath);
     }
 
     if (this.currentRelic) {

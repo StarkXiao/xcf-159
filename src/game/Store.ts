@@ -661,7 +661,14 @@ class Store {
     const mech = this.mechanisms.find(m => m.id === mechanismId);
     if (!mech || mech.type !== 'password') return false;
     if (this.state.solvedMechanisms.includes(mechanismId)) return false;
-    return password === mech.answer;
+    
+    this.recordMechanismAttempt(mechanismId);
+    
+    const isCorrect = password === mech.answer;
+    if (isCorrect) {
+      return this.solveMechanism(mechanismId, [`password:${password}`]);
+    }
+    return false;
   }
 
   solveMechanism(mechanismId: string, solutionPath: string[] = []): boolean {
@@ -2151,11 +2158,32 @@ class Store {
     return allHistoryCollected && allArtCollected;
   }
 
-  solveLinkedMechanism(mechanismId: string): boolean {
+  solveLinkedMechanism(mechanismId: string, solutionPath: string[] = []): boolean {
     if (!this.canSolveLinkedMechanism(mechanismId)) return false;
 
     const mech = this.mechanisms.find(m => m.id === mechanismId);
     if (!mech) return false;
+
+    const attempts = this.state.endingEvaluation.mechanismAttemptCounts[mechanismId] || 1;
+    const hintsUsed = this.state.endingEvaluation.mechanismHintCounts[mechanismId] || 0;
+    const startTime = this.state.endingEvaluation.mechanismStartTime[mechanismId] || Date.now();
+    const solveTime = Date.now() - startTime;
+    const isOptimal = attempts === 1 && hintsUsed === 0;
+
+    const solveRecord: MechanismSolveRecord = {
+      mechanismId,
+      solvedAt: Date.now(),
+      attempts,
+      hintsUsed,
+      solveTime,
+      solutionPath,
+      isOptimal
+    };
+
+    this.state.endingEvaluation.mechanismSolveRecords.push(solveRecord);
+    if (isOptimal) {
+      this.state.endingEvaluation.optimalMechanisms.push(mechanismId);
+    }
 
     mech.solved = true;
     this.state.solvedMechanisms.push(mechanismId);
@@ -2417,6 +2445,8 @@ class Store {
     quest.status = 'completed';
     this.state.visitorQuests.deliveringQuests = this.state.visitorQuests.deliveringQuests.filter(id => id !== questId);
     this.state.visitorQuests.completedQuests.push(questId);
+    
+    this.updateSideQuestProgress(questId, true);
 
     let scoreEarned = 0;
     if (quest.reward.type === 'score') {
@@ -3118,7 +3148,9 @@ class Store {
     if (allSideQuests.length === 0) return 1.0;
     
     const completed = allSideQuests.filter(q => 
-      this.state.visitorQuests.completedQuests.includes(q.id)
+      this.state.endingEvaluation.sideQuestProgress.some(p => 
+        p.questId === q.id && p.completed
+      ) || this.state.visitorQuests.completedQuests.includes(q.id)
     );
     
     return completed.length / allSideQuests.length;
@@ -3732,7 +3764,8 @@ class Store {
       completed: false,
       baseScore: GAME_CONFIG.MEMORY_PUZZLE.BASE_SCORE,
       finalScore: GAME_CONFIG.MEMORY_PUZZLE.BASE_SCORE,
-      scoreMultiplier: GAME_CONFIG.MEMORY_PUZZLE.SCORE_MULTIPLIER_ONCE
+      scoreMultiplier: GAME_CONFIG.MEMORY_PUZZLE.SCORE_MULTIPLIER_ONCE,
+      solutionPath: []
     };
 
     this.state.memoryPuzzleRecovery[puzzleId] = state;
@@ -4242,6 +4275,12 @@ class Store {
     const analysis = this.analyzeMemorySortResult(sortedFragmentIds, correctOrder);
     const isCorrect = analysis.wrongPositions.length === 0;
 
+    this.recordMechanismAttempt(mechanismId);
+    
+    const solutionPathStep = `sort:${sortedFragmentIds.join(',')}`;
+    state.solutionPath = state.solutionPath || [];
+    state.solutionPath.push(solutionPathStep);
+    
     const attempt: MemoryPuzzleAttempt = {
       attemptNumber: state.attempts.length + 1,
       arrangedIds: [...sortedFragmentIds],
@@ -4254,9 +4293,10 @@ class Store {
     this.state.memoryPuzzleRecovery[puzzleId] = state;
 
     if (isCorrect) {
+      state.solutionPath.push('success');
       const checkResult = this.checkMechanismMemorySort(mechanismId, sortedFragmentIds);
       if (checkResult) {
-        const solved = this.solveMechanism(mechanismId);
+        const solved = this.solveMechanism(mechanismId, state.solutionPath);
         if (solved) {
           state.completed = true;
           state.completedTime = Date.now();
@@ -4316,6 +4356,9 @@ class Store {
       }
     }
 
+    state.solutionPath.push('error');
+    this.state.memoryPuzzleRecovery[puzzleId] = state;
+    
     eventBus.emit('memorypuzzle:failed', {
       puzzleId,
       attemptNumber: attempt.attemptNumber,

@@ -13,6 +13,7 @@ export class MechanismModule {
   private inputValue: string = '';
   private sequenceInput: number[] = [];
   private isOpen: boolean = false;
+  private solutionPath: string[] = [];
 
   constructor(container: PIXI.Container) {
     this.container = container;
@@ -41,6 +42,7 @@ export class MechanismModule {
     this.currentMechanism = mechanism;
     this.inputValue = store.getMechanismInput(data.mechanismId) || '';
     this.sequenceInput = [];
+    this.solutionPath = [];
     this.isOpen = true;
 
     store.setActiveMechanism(data.mechanismId);
@@ -569,6 +571,7 @@ export class MechanismModule {
   private addToInput(char: string): void {
     if (this.inputValue.length >= 6) return;
     this.inputValue += char;
+    this.solutionPath.push(`input:${char}`);
     if (this.currentMechanism) {
       store.setMechanismInput(this.currentMechanism.id, this.inputValue);
     }
@@ -579,6 +582,7 @@ export class MechanismModule {
   private backspaceInput(): void {
     if (this.inputValue.length > 0) {
       this.inputValue = this.inputValue.slice(0, -1);
+      this.solutionPath.push('backspace');
       if (this.currentMechanism) {
         store.setMechanismInput(this.currentMechanism.id, this.inputValue);
       }
@@ -589,6 +593,7 @@ export class MechanismModule {
 
   private clearInput(): void {
     this.inputValue = '';
+    this.solutionPath.push('clear');
     if (this.currentMechanism) {
       store.clearMechanismInput(this.currentMechanism.id);
     }
@@ -721,9 +726,14 @@ export class MechanismModule {
     if (!this.currentMechanism) return;
 
     const answer = this.currentMechanism.answer as string;
+    store.recordMechanismAttempt(this.currentMechanism.id);
+    this.solutionPath.push(`submit:${this.inputValue}`);
+    
     if (this.inputValue === answer) {
+      this.solutionPath.push('success');
       this.onSuccess();
     } else {
+      this.solutionPath.push('error');
       const errorFeedback = this.analyzePasswordError(this.inputValue, answer);
       this.onError(errorFeedback);
     }
@@ -733,10 +743,15 @@ export class MechanismModule {
     if (!this.currentMechanism) return;
 
     const answer = this.currentMechanism.answer as number[];
+    store.recordMechanismAttempt(this.currentMechanism.id);
+    this.solutionPath.push(`sequence:${this.sequenceInput.join(',')}`);
+    
     const isCorrect = this.sequenceInput.every((val, idx) => val === answer[idx]);
     if (isCorrect) {
+      this.solutionPath.push('success');
       this.onSuccess();
     } else {
+      this.solutionPath.push('error');
       const errorFeedback = this.analyzeSequenceError(this.sequenceInput, answer);
       this.onError(errorFeedback);
     }
@@ -749,9 +764,9 @@ export class MechanismModule {
     if (this.currentMechanism) {
       store.clearMechanismInput(this.currentMechanism.id);
       if (this.currentMechanism.isLinked) {
-        store.solveLinkedMechanism(this.currentMechanism.id);
+        store.solveLinkedMechanism(this.currentMechanism.id, this.solutionPath);
       } else {
-        store.solveMechanism(this.currentMechanism.id);
+        store.solveMechanism(this.currentMechanism.id, this.solutionPath);
       }
     }
 
