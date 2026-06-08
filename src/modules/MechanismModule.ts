@@ -1,5 +1,5 @@
 import * as PIXI from 'pixi.js';
-import { Mechanism, MechanismErrorType, MechanismErrorFeedback } from '../game/types';
+import { Mechanism, MechanismErrorType, MechanismErrorFeedback, BreakpointState } from '../game/types';
 import { store } from '../game/Store';
 import { eventBus } from '../game/EventBus';
 import { GAME_CONFIG } from '../game/config';
@@ -18,6 +18,19 @@ export class MechanismModule {
     this.container = container;
     eventBus.on('mechanism:open', this.handleMechanismOpen.bind(this));
     eventBus.on('mechanism:solve', this.handleMechanismSolve.bind(this));
+    eventBus.on('breakpoint:resume', this.handleBreakpointResume.bind(this));
+  }
+
+  private handleBreakpointResume(data: { breakpoint: BreakpointState }): void {
+    const activeMechanismId = data.breakpoint.mechanismProgress.activeMechanismId;
+    if (activeMechanismId && !this.isOpen) {
+      const mechanism = store.getMechanismById(activeMechanismId);
+      if (mechanism && !mechanism.solved) {
+        Animator.delay(500).then(() => {
+          eventBus.emit('mechanism:open', { mechanismId: activeMechanismId });
+        });
+      }
+    }
   }
 
   private handleMechanismOpen(data: { mechanismId: string }): void {
@@ -26,9 +39,11 @@ export class MechanismModule {
     if (!mechanism || mechanism.solved) return;
 
     this.currentMechanism = mechanism;
-    this.inputValue = '';
+    this.inputValue = store.getMechanismInput(data.mechanismId) || '';
     this.sequenceInput = [];
     this.isOpen = true;
+
+    store.setActiveMechanism(data.mechanismId);
 
     if (mechanism.type === 'memory_sort') {
       const result = store.interactWithMechanism(data.mechanismId);
@@ -328,7 +343,9 @@ export class MechanismModule {
         this.lockPanel!.alpha = progress;
         this.lockPanel!.scale.set(0.9 + progress * 0.1);
       },
-      undefined,
+      () => {
+        this.updateDisplay();
+      },
       Animator.easeOutCubic
     );
   }
@@ -552,6 +569,9 @@ export class MechanismModule {
   private addToInput(char: string): void {
     if (this.inputValue.length >= 6) return;
     this.inputValue += char;
+    if (this.currentMechanism) {
+      store.setMechanismInput(this.currentMechanism.id, this.inputValue);
+    }
     this.updateDisplay();
     audioModule.playSFX('sfx_collect');
   }
@@ -559,6 +579,9 @@ export class MechanismModule {
   private backspaceInput(): void {
     if (this.inputValue.length > 0) {
       this.inputValue = this.inputValue.slice(0, -1);
+      if (this.currentMechanism) {
+        store.setMechanismInput(this.currentMechanism.id, this.inputValue);
+      }
       this.updateDisplay();
       audioModule.playSFX('sfx_click');
     }
@@ -566,6 +589,9 @@ export class MechanismModule {
 
   private clearInput(): void {
     this.inputValue = '';
+    if (this.currentMechanism) {
+      store.clearMechanismInput(this.currentMechanism.id);
+    }
     this.updateDisplay();
     audioModule.playSFX('sfx_click');
   }
@@ -721,6 +747,7 @@ export class MechanismModule {
     audioModule.playSFX('sfx_unlock');
 
     if (this.currentMechanism) {
+      store.clearMechanismInput(this.currentMechanism.id);
       if (this.currentMechanism.isLinked) {
         store.solveLinkedMechanism(this.currentMechanism.id);
       } else {
@@ -1107,6 +1134,7 @@ export class MechanismModule {
         this.lockPanel = null;
         this.isOpen = false;
         this.currentMechanism = null;
+        store.setActiveMechanism(null);
       }
     );
   }

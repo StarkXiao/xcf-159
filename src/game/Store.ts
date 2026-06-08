@@ -494,6 +494,23 @@ class Store {
         }
       });
     }
+
+    if (this.state.breakpoint) {
+      const bp = this.state.breakpoint;
+      
+      this.chapters.forEach(ch => {
+        if (bp.narrativeProgress.completedKeyPoints) {
+          ch.keyPoints?.forEach(kp => {
+            if (bp.narrativeProgress.completedKeyPoints.includes(kp.id)) {
+              kp.isCompleted = true;
+            }
+          });
+        }
+      });
+
+      this.activeMechanismId = bp.mechanismProgress.activeMechanismId;
+      this.mechanismInputState = { ...bp.mechanismProgress.mechanismInputState };
+    }
   }
 
   getState(): GameState {
@@ -786,6 +803,7 @@ class Store {
 
     eventBus.emit('recording:unlock', { recordingId });
     this.saveToStorage();
+    this.saveBreakpoint(false);
     return true;
   }
 
@@ -801,6 +819,7 @@ class Store {
 
     eventBus.emit('recording:play', { recordingId });
     this.saveToStorage();
+    this.saveBreakpoint(false);
     return true;
   }
 
@@ -1196,6 +1215,25 @@ class Store {
     this.gameStartTime = Date.now() - breakpoint.playTime;
     this.activeMechanismId = breakpoint.mechanismProgress.activeMechanismId;
     this.mechanismInputState = { ...breakpoint.mechanismProgress.mechanismInputState };
+
+    if (breakpoint.currentChapter && this.state.currentChapter !== breakpoint.currentChapter) {
+      this.state.currentChapter = breakpoint.currentChapter;
+    }
+
+    if (breakpoint.currentExhibition && this.state.currentExhibition !== breakpoint.currentExhibition) {
+      this.state.currentExhibition = breakpoint.currentExhibition;
+    }
+
+    if (breakpoint.narrativeProgress.triggeredStoryNodes) {
+      this.state.breakpoint.narrativeProgress.triggeredStoryNodes = [...breakpoint.narrativeProgress.triggeredStoryNodes];
+    }
+
+    if (breakpoint.narrativeProgress.completedKeyPoints) {
+      this.state.breakpoint.narrativeProgress.completedKeyPoints = [...breakpoint.narrativeProgress.completedKeyPoints];
+    }
+
+    this.applyStateToData();
+    this.saveToStorage();
 
     eventBus.emit('breakpoint:resume', { breakpoint });
     return true;
@@ -2958,6 +2996,7 @@ class Store {
     });
 
     this.saveToStorage();
+    this.saveBreakpoint(false);
 
     return {
       success: true,

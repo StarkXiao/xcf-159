@@ -154,6 +154,15 @@ export class GameScene extends Scene {
       store.setCurrentExhibition(breakpoint.currentExhibition);
     }
 
+    if (this.exhibitionModule) {
+      this.exhibitionModule.loadExhibition(breakpoint.currentExhibition, false);
+    }
+
+    if (this.chapterModule) {
+      eventBus.emit('chapter:enter', { chapterId: breakpoint.currentChapter });
+      eventBus.emit('exhibition:enter', { exhibitionId: breakpoint.currentExhibition });
+    }
+
     eventBus.emit('breakpoint:restored', { breakpoint });
   }
 
