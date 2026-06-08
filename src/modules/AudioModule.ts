@@ -607,11 +607,17 @@ export class AudioModule {
   };
 
   private onChapterEnter = (data: { chapterId: string }) => {
-    this.handleStoryNode(data.chapterId, 'chapter_start');
+    const storyNodeId = `chapter:${data.chapterId}:start`;
+    if (!store.hasTriggeredStoryNode(storyNodeId)) {
+      this.handleStoryNode(data.chapterId, 'chapter_start');
+    }
   };
 
   private onChapterComplete = (data: { chapterId: string }) => {
-    this.handleStoryNode(data.chapterId, 'chapter_end');
+    const storyNodeId = `chapter:${data.chapterId}:end`;
+    if (!store.hasTriggeredStoryNode(storyNodeId)) {
+      this.handleStoryNode(data.chapterId, 'chapter_end');
+    }
   };
 
   private onMechanismOpen = (data: { mechanismId: string }) => {
@@ -642,6 +648,11 @@ export class AudioModule {
   };
 
   private onHotspotInvestigate = (data: { hotspotId: string }) => {
+    const storyNodeId = `hotspot:${data.hotspotId}:investigate`;
+    if (store.hasTriggeredStoryNode(storyNodeId)) {
+      return;
+    }
+
     const exhibition = store.getExhibitions().find(e =>
       e.hotspots.some(h => h.id === data.hotspotId)
     );

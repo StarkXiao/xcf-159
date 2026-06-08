@@ -256,12 +256,27 @@ class Store {
     this.startAutoSave();
 
     eventBus.on('chapter:enter', (data: { chapterId: string }) => {
+      this.triggerStoryNode(`chapter:${data.chapterId}:start`);
+
       const recording = this.recordings.find(r => r.id === `rec_${data.chapterId}_unlock`);
       if (recording && recording.unlocked && !recording.played) {
         setTimeout(() => {
           eventBus.emit('recording:auto-play', { recordingId: recording.id });
         }, 2000);
       }
+    });
+
+    eventBus.on('exhibition:enter', (data: { exhibitionId: string }) => {
+      this.triggerStoryNode(`exhibition:${data.exhibitionId}:enter`);
+      this.tryCompleteKeyPoints('story', data.exhibitionId);
+    });
+
+    eventBus.on('hotspot:investigate', (data: { hotspotId: string }) => {
+      this.triggerStoryNode(`hotspot:${data.hotspotId}:investigate`);
+    });
+
+    eventBus.on('chapter:complete', (data: { chapterId: string }) => {
+      this.triggerStoryNode(`chapter:${data.chapterId}:end`);
     });
 
     eventBus.on('memorycorridor:phase-complete', (data: { phase: number }) => {
@@ -592,6 +607,8 @@ class Store {
       }
     }
 
+    this.tryCompleteKeyPoints('clue', clueId);
+
     eventBus.emit('clue:collect', { clueId });
     this.saveToStorage();
     this.saveBreakpoint(false);
@@ -708,6 +725,8 @@ class Store {
       this.addTimelineEventIfNotExists('timeline_cor_complete');
       eventBus.emit('memorycorridor:complete');
     }
+
+    this.tryCompleteKeyPoints('mechanism', mechanismId);
 
     eventBus.emit('mechanism:solve', { mechanismId, reward: mech.reward });
     this.saveToStorage();
@@ -1156,6 +1175,23 @@ class Store {
     return { ...this.state.breakpoint };
   }
 
+  getNarrativeProgressSummary(): {
+    triggeredStoryNodes: string[];
+    completedKeyPoints: string[];
+    playedRecordings: string[];
+    totalStoryNodes: number;
+    totalKeyPoints: number;
+  } {
+    const allKeyPoints = this.chapters.flatMap(ch => ch.keyPoints || []);
+    return {
+      triggeredStoryNodes: [...this.state.breakpoint.narrativeProgress.triggeredStoryNodes],
+      completedKeyPoints: [...this.state.breakpoint.narrativeProgress.completedKeyPoints],
+      playedRecordings: [...this.state.archive.playedRecordings],
+      totalStoryNodes: this.state.breakpoint.narrativeProgress.triggeredStoryNodes.length,
+      totalKeyPoints: allKeyPoints.length
+    };
+  }
+
   getPlayTime(): number {
     return Date.now() - this.gameStartTime;
   }
@@ -1191,6 +1227,16 @@ class Store {
 
   isKeyPointCompleted(keyPointId: string): boolean {
     return this.state.breakpoint.narrativeProgress.completedKeyPoints.includes(keyPointId);
+  }
+
+  private tryCompleteKeyPoints(type: string, targetId: string): void {
+    this.chapters.forEach(chapter => {
+      chapter.keyPoints?.forEach(kp => {
+        if (kp.type === type && kp.targetId === targetId && !kp.isCompleted) {
+          this.completeKeyPoint(kp.id);
+        }
+      });
+    });
   }
 
   triggerStoryNode(storyNode: string): boolean {
@@ -1236,7 +1282,45 @@ class Store {
     this.saveToStorage();
 
     eventBus.emit('breakpoint:resume', { breakpoint });
+
+    setTimeout(() => {
+      this.resumeNarrativePlayback(breakpoint);
+    }, 1000);
+
     return true;
+  }
+
+  private resumeNarrativePlayback(breakpoint: BreakpointState): void {
+    const currentChapterId = breakpoint.currentChapter;
+    const pendingRecordings = this.recordings.filter(r => 
+      r.unlocked && !r.played && r.chapterId === currentChapterId
+    );
+
+    pendingRecordings.forEach((recording, index) => {
+      setTimeout(() => {
+        if (!store.getRecordingById(recording.id)?.played) {
+          eventBus.emit('recording:auto-play', { recordingId: recording.id });
+        }
+      }, index * 2500);
+    });
+
+    if (breakpoint.narrativeProgress.unlockedTimelineEvents) {
+      breakpoint.narrativeProgress.unlockedTimelineEvents.forEach(eventId => {
+        this.addTimelineEventIfNotExists(eventId);
+      });
+    }
+
+    if (breakpoint.narrativeProgress.madeBranchChoices) {
+      Object.entries(breakpoint.narrativeProgress.madeBranchChoices).forEach(([branchId, choiceId]) => {
+        const branch = this.branchChoices.find(b => b.id === branchId);
+        if (branch && branch.selectedChoiceId === null) {
+          branch.selectedChoiceId = choiceId;
+          this.state.memoryCorridor.madeChoices[branchId] = choiceId;
+        }
+      });
+    }
+
+    eventBus.emit('breakpoint:narrative-resumed', { breakpoint });
   }
 
   getNightPatrolState(): NightPatrolState {
